@@ -105,6 +105,15 @@ interface ReactorControlProps {
   onUpdateReactor: (id: ReactorId, updates: Partial<ReactorState>) => void;
 }
 
+const REACTOR_CAPACITY: Record<string, string> = {
+  R1: '1 M³',
+  R2: '5 M³',
+  R3: '10 M³',
+  R4: '10 M³',
+  R5: '1 M³',
+  R6: '1,6 M³',
+};
+
 export const ReactorControl: React.FC<ReactorControlProps> = ({ reactors, onUpdateReactor }) => {
 
   const getStatusColor = (status: ReactorStatus) => {
@@ -163,6 +172,7 @@ export const ReactorControl: React.FC<ReactorControlProps> = ({ reactors, onUpda
                   <div>
                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter">{reactor.id}</h3>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Misturador Vertical</p>
+                    <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Capacidade: <span className="text-blue-600 font-bold">{REACTOR_CAPACITY[reactor.id] ?? '—'}</span></p>
                     <div className={`mt-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit ${getStatusColor(reactor.status)}`}>
                       {getStatusIcon(reactor.status)}
                       {reactor.status}
