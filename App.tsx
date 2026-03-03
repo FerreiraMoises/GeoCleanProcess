@@ -4,13 +4,13 @@ import { Dashboard } from './components/Dashboard';
 import { ProductionControl } from './components/ProductionControl';
 import { ManufacturingRoadmap } from './components/ManufacturingRoadmap';
 import { ReactorControl } from './components/ReactorControl';
-import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './GeoCleanProcess/constants';
+import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './constants';
 import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId } from './types';
 import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors,
   addLog, addTask, updateTaskStatus, updateReactor,
   seedEmployees, seedLogs, seedTasks, seedReactors,
-} from './services/dbService';
+} from "./dbService";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -151,3 +151,7 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+function newFunction() {
+  "./services/supabaseClient";
+}

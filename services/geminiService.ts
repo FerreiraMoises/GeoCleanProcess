@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ProductionLog, Task, Employee, AIAnalysisResult } from "./types";
+import { ProductionLog, Task, Employee, AIAnalysisResult } from "../types";
 
 const getClient = () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string;
@@ -33,9 +33,8 @@ export const analyzeProductionData = async (
         Responda APENAS com o JSON.
         `;
 
-        // Use gemini-3-flash-preview for Basic Text Tasks and implement responseSchema for structured JSON output
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.0-flash',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -61,7 +60,6 @@ export const analyzeProductionData = async (
             }
         });
 
-        // Use .text property to extract the generated response text directly
         const text = response.text;
         if (!text) return { summary: "Erro na análise", recommendations: [], efficiencyScore: 0 };
 
@@ -80,12 +78,10 @@ export const analyzeProductionData = async (
 export const generateTaskDescription = async (product: string, step: string): Promise<string> => {
     try {
         const ai = getClient();
-        // Use gemini-3-flash-preview for simple text generation tasks
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.0-flash',
             contents: `Descreva uma instrução técnica curta e segura para um operador de fertilizantes realizando a etapa de "${step}" para o produto "${product}". Máximo 2 frases.`,
         });
-        // Use .text property to access output content
         return response.text || "Sem descrição disponível.";
     } catch (error) {
         return "Realizar a etapa conforme procedimentos padrão.";
