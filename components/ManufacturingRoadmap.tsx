@@ -170,7 +170,8 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
                             className={`text-xs font-medium rounded-full px-2 py-1 border-0 cursor-pointer ${task.status === 'Concluído' ? 'bg-green-100 text-green-800' :
                               task.status === 'Em Andamento' ? 'bg-blue-100 text-blue-800' :
                                 task.status === 'Atrasado' ? 'bg-red-100 text-red-800' :
-                                  'bg-slate-100 text-slate-800'
+                                  task.status === 'Colaborador de Férias' ? 'bg-purple-100 text-purple-800' :
+                                    'bg-slate-100 text-slate-800'
                               }`}
                           >
                             {STATUS_OPTIONS.map(opt => (

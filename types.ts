@@ -6,7 +6,7 @@ export interface Employee {
   role: Role;
 }
 
-export type ProductType = 
+export type ProductType =
   | 'Cleanner Top'
   | 'Cleanner Fly'
   | 'Geo Mangânes'
@@ -44,7 +44,7 @@ export type ProductType =
   | 'Potence Boro'
   | 'Potence Cálcio';
 
-export type ProcessStatus = 'Pendente' | 'Em Andamento' | 'Controle de Qualidade' | 'Concluído' | 'Atrasado';
+export type ProcessStatus = 'Pendente' | 'Em Andamento' | 'Controle de Qualidade' | 'Concluído' | 'Atrasado' | 'Colaborador de Férias';
 
 export interface ProductionLog {
   id: string;

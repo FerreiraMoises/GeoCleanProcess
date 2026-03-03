@@ -107,7 +107,7 @@ interface ReactorControlProps {
 
 // Capacidade em M³ por reator
 const REACTOR_CAPACITY: Record<string, string> = {
-  R1: '5 M³',
+  R1: '1 M³',
   R2: '5 M³',
   R3: '10 M³',
   R4: '10 M³',

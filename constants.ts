@@ -52,7 +52,8 @@ export const STATUS_OPTIONS: ProcessStatus[] = [
   'Em Andamento',
   'Controle de Qualidade',
   'Concluído',
-  'Atrasado'
+  'Atrasado',
+  'Colaborador de Férias'
 ];
 
 export const MOCK_LOGS = [
