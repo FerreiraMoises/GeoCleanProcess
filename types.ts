@@ -22,6 +22,7 @@ export type ProductType =
   | 'Super King'
   | 'Sirius'
   | 'Potence Nitro'
+  | 'Potence Nitro + H'
   | 'Potence Manganês'
   | 'Geo Potassio'
   | 'Geo Cobre'
