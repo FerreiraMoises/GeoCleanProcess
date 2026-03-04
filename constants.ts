@@ -24,6 +24,7 @@ export const PRODUCTS: ProductType[] = [
   'Super King',
   'Sirius',
   'Potence Nitro',
+  'Potence Nitro + H',
   'Potence Manganês',
   'Geo Potassio',
   'Geo Cobre',
@@ -44,7 +45,7 @@ export const PRODUCTS: ProductType[] = [
   'Cleanner Mix',
   'Geo Molibdênio',
   'Potence Boro',
-  'Potence Cálcio'
+  'Potence Cálcio',
 ];
 
 export const STATUS_OPTIONS: ProcessStatus[] = [
