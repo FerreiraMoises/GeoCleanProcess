@@ -5,10 +5,10 @@ import { ProductionControl } from './components/ProductionControl';
 import { ManufacturingRoadmap } from './components/ManufacturingRoadmap';
 import { ReactorControl } from './components/ReactorControl';
 import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './constants';
-import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId } from './types';
+import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
 import {
-  fetchEmployees, fetchLogs, fetchTasks, fetchReactors,
-  addLog, addTask, updateTaskStatus, updateReactor,
+  fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
+  addLog, addTask, updateTaskStatus, updateReactor, addObservation,
   seedEmployees, seedLogs, seedTasks, seedReactors,
 } from "./dbService";
 
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<ProductionLog[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [reactors, setReactors] = useState<ReactorState[]>([]);
+  const [observacoes, setObservacoes] = useState<Observacao[]>([]);
 
   // Carrega dados do banco na inicialização. Se estiver vazio, popula com dados iniciais.
   useEffect(() => {
@@ -56,6 +57,10 @@ const App: React.FC = () => {
           dbReactors = MOCK_REACTORS;
         }
         setReactors(dbReactors);
+
+        // Observações
+        const dbObs = await fetchObservations();
+        setObservacoes(dbObs);
       } catch (err) {
         console.error('Erro ao carregar dados do Supabase:', err);
         // Fallback para dados locais em caso de erro
@@ -105,6 +110,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAddObservacao = async (nova: Observacao) => {
+    try {
+      await addObservation(nova);
+      setObservacoes(prev => [nova, ...prev]);
+    } catch (err) {
+      console.error('Erro ao salvar observação:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -140,7 +154,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex font-sans text-slate-900 bg-slate-50 min-h-screen">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} observacoes={observacoes} onAddObservacao={handleAddObservacao} />
       <main className="flex-1 ml-64">
         <div className="max-w-7xl mx-auto">
           {renderContent()}

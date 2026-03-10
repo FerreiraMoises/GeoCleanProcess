@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { Employee, ProductionLog, Task, ProcessStatus, ReactorState, ReactorId } from '../types';
+import { Employee, ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
 
 // ─── EMPLOYEES ────────────────────────────────────────────────────────────────
 
@@ -144,5 +144,31 @@ export async function seedReactors(reactors: ReactorState[]): Promise<void> {
         last_update: r.lastUpdate,
     }));
     const { error } = await supabase.from('reactors').upsert(rows, { onConflict: 'id' });
+    if (error) throw error;
+}
+
+// ─── OBSERVATIONS ─────────────────────────────────────────────────────────────
+
+export async function fetchObservations(): Promise<Observacao[]> {
+    const { data, error } = await supabase
+        .from('observations')
+        .select('*')
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data.map((row: any) => ({
+        id: row.id,
+        tipo: row.tipo,
+        descricao: row.descricao,
+        timestamp: row.timestamp,
+    })) as Observacao[];
+}
+
+export async function addObservation(obs: Observacao): Promise<void> {
+    const { error } = await supabase.from('observations').insert({
+        id: obs.id,
+        tipo: obs.tipo,
+        descricao: obs.descricao,
+        timestamp: obs.timestamp,
+    });
     if (error) throw error;
 }

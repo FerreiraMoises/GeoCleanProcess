@@ -82,3 +82,12 @@ export interface ReactorState {
   temperature: number;
   lastUpdate: string;
 }
+
+export type ObservacaoTipo = 'quebra_equipamento' | 'falta_materia_prima';
+
+export interface Observacao {
+  id: string;
+  tipo: ObservacaoTipo;
+  descricao: string;
+  timestamp: string;
+}

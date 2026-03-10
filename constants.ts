@@ -46,6 +46,7 @@ export const PRODUCTS: ProductType[] = [
   'Geo Molibdênio',
   'Potence Boro',
   'Potence Cálcio',
+  'Inoculante',
 
 ];
 

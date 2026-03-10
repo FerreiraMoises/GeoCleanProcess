@@ -1,25 +1,18 @@
 import React, { useState } from 'react';
 import { Factory, ClipboardList, Cylinder, PieChart, AlertTriangle, X, Wrench, PackageX, Clock } from 'lucide-react';
+import { Observacao, ObservacaoTipo } from '../types';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  observacoes: Observacao[];
+  onAddObservacao: (obs: Observacao) => void;
 }
 
-type ObservacaoTipo = 'quebra_equipamento' | 'falta_materia_prima';
-
-interface Observacao {
-  id: string;
-  tipo: ObservacaoTipo;
-  descricao: string;
-  timestamp: string;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, observacoes, onAddObservacao }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [tipo, setTipo] = useState<ObservacaoTipo>('quebra_equipamento');
   const [descricao, setDescricao] = useState('');
-  const [observacoes, setObservacoes] = useState<Observacao[]>([]);
   const [sucesso, setSucesso] = useState(false);
 
   const menuItems = [
@@ -37,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       descricao: descricao.trim(),
       timestamp: new Date().toLocaleString('pt-BR'),
     };
-    setObservacoes(prev => [nova, ...prev]);
+    onAddObservacao(nova);
     setDescricao('');
     setSucesso(true);
     setTimeout(() => setSucesso(false), 2500);
@@ -79,8 +72,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors ${isActive
-                    ? 'bg-green-600 text-white shadow-md'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-green-600 text-white shadow-md'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
               >
                 <Icon className="w-5 h-5" />
@@ -153,8 +146,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   <button
                     onClick={() => setTipo('quebra_equipamento')}
                     className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200 text-center ${tipo === 'quebra_equipamento'
-                        ? 'border-red-400 bg-red-50 text-red-600'
-                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                      ? 'border-red-400 bg-red-50 text-red-600'
+                      : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
                       }`}
                   >
                     <Wrench className="w-6 h-6" />
@@ -163,8 +156,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   <button
                     onClick={() => setTipo('falta_materia_prima')}
                     className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200 text-center ${tipo === 'falta_materia_prima'
-                        ? 'border-orange-400 bg-orange-50 text-orange-600'
-                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                      ? 'border-orange-400 bg-orange-50 text-orange-600'
+                      : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
                       }`}
                   >
                     <PackageX className="w-6 h-6" />
@@ -219,8 +212,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                     <div
                       key={obs.id}
                       className={`rounded-lg p-3 border text-xs ${obs.tipo === 'quebra_equipamento'
-                          ? 'bg-red-50 border-red-100 text-red-700'
-                          : 'bg-orange-50 border-orange-100 text-orange-700'
+                        ? 'bg-red-50 border-red-100 text-red-700'
+                        : 'bg-orange-50 border-orange-100 text-orange-700'
                         }`}
                     >
                       <div className="flex items-center justify-between mb-1">
