@@ -16,18 +16,24 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ logs, tasks, employees }) => {
-  // Processamento de dados para os gráficos
-  const productionByProduct = logs.reduce((acc, log) => {
-    acc[log.product] = (acc[log.product] || 0) + log.quantityM3;
-    return acc;
-  }, {} as Record<string, number>);
+  // Agrupa produções por produto usando Map para garantir zero duplicidades
+  const productMap = new Map<string, { displayName: string; total: number }>();
+  logs.forEach(log => {
+    const key = String(log.product).trim().toLowerCase();
+    const qty = Number(log.quantityM3) || 0;
+    if (productMap.has(key)) {
+      productMap.get(key)!.total += qty;
+    } else {
+      productMap.set(key, { displayName: String(log.product).trim(), total: qty });
+    }
+  });
 
-  const barData = Object.entries(productionByProduct)
-    .map(([name, value]) => ({ name: name.split(' ')[0], full_name: name, value: Number(value) }))
+  const barData = Array.from(productMap.values())
+    .map(({ displayName, total }) => ({ name: displayName, full_name: displayName, value: total }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 6);
 
-  const COLORS = ['#16a34a', '#22c55e', '#4ade80', '#86efac', '#bbf7d0'];
+  const COLORS = ['#16a34a', '#22c55e', '#4ade80', '#86efac', '#bbf7d0', '#dcfce7'];
 
   // Dados de tendência baseados nos logs reais
   const trendData = logs.reduce((acc, log) => {
@@ -160,7 +166,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ logs, tasks, employees }) 
                     <BarChart data={barData} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                         <XAxis type="number" hide />
-                        <YAxis dataKey="name" type="category" tick={{fontSize: 10, fontWeight: 'bold', fill: '#64748b'}} axisLine={false} tickLine={false} width={80} />
+                        <YAxis dataKey="name" type="category" tick={{fontSize: 11, fontWeight: 'bold', fill: '#64748b'}} axisLine={false} tickLine={false} width={140} />
                         <Tooltip 
                             cursor={{fill: '#f8fafc'}} 
                             content={({ active, payload }) => {

@@ -47,6 +47,12 @@ export const PRODUCTS: ProductType[] = [
   'Potence Boro',
   'Potence Cálcio',
   'Inoculante',
+  'Geo Ferro',
+  'Inoculante Nitrogeo AZ',
+  'Inoculante Soja (+/S/)',
+  'Monarca',
+  'Inoculante Panta Premium',
+  '',
 
 ];
 

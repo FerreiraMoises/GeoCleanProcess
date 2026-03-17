@@ -9,7 +9,7 @@ import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao
 import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
   addLog, addTask, updateTaskStatus, updateReactor, addObservation,
-  seedEmployees, seedLogs, seedTasks, seedReactors,
+  seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks,
 } from "./dbService";
 
 const App: React.FC = () => {
@@ -72,6 +72,26 @@ const App: React.FC = () => {
       }
     }
     initData();
+  }, []);
+
+  // Limpeza automática de tarefas concluídas a cada 12 horas
+  useEffect(() => {
+    const cleanCompleted = async () => {
+      try {
+        const deletedIds = await deleteCompletedTasks();
+        if (deletedIds.length > 0) {
+          setTasks(prev => prev.filter(t => !deletedIds.includes(t.id)));
+          console.log(`[Auto-limpeza] ${deletedIds.length} tarefa(s) concluída(s) removida(s).`);
+        }
+      } catch (err) {
+        console.error('[Auto-limpeza] Erro ao deletar tarefas concluídas:', err);
+      }
+    };
+
+    // Executa imediatamente ao carregar e depois a cada 12 horas
+    cleanCompleted();
+    const interval = setInterval(cleanCompleted, 12 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleAddLog = async (newLog: ProductionLog) => {

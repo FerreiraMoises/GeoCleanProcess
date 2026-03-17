@@ -26,7 +26,7 @@ export async function fetchLogs(): Promise<ProductionLog[]> {
         id: row.id,
         date: row.date,
         product: row.product,
-        quantityM3: row.quantity_m3,
+        quantityM3: Number(row.quantity_m3),
         shift: row.shift,
         notes: row.notes,
     })) as ProductionLog[];
@@ -109,6 +109,24 @@ export async function seedTasks(tasks: Task[]): Promise<void> {
     }));
     const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' });
     if (error) throw error;
+}
+
+export async function deleteCompletedTasks(): Promise<string[]> {
+    // Busca IDs das tarefas concluídas antes de deletar
+    const { data: completed, error: fetchErr } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('status', 'Concluído');
+    if (fetchErr) throw fetchErr;
+    if (!completed || completed.length === 0) return [];
+
+    const ids = completed.map((r: any) => r.id);
+    const { error: deleteErr } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('status', 'Concluído');
+    if (deleteErr) throw deleteErr;
+    return ids;
 }
 
 // ─── REACTORS ─────────────────────────────────────────────────────────────────

@@ -43,7 +43,14 @@ export type ProductType =
   | 'Cleanner Mix'
   | 'Geo Molibdênio'
   | 'Potence Boro'
-  | 'Potence Cálcio';
+  | 'Potence Cálcio'
+  | 'Inoculante'
+  | 'Geo Ferro'
+  | 'Inoculante Nitrogeo AZ'
+  | 'Inoculante Soja (+/S/)'
+  | 'Monarca'
+  | 'Inoculante Panta Premium'
+  | '';
 
 export type ProcessStatus = 'Pendente' | 'Em Andamento' | 'Controle de Qualidade' | 'Concluído' | 'Atrasado' | 'Colaborador de Férias';
 
