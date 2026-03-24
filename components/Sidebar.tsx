@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Factory, ClipboardList, Cylinder, PieChart, AlertTriangle, X, Wrench, PackageX, Clock } from 'lucide-react';
+import { Factory, ClipboardList, Cylinder, PieChart, AlertTriangle, X, Wrench, PackageX, Clock, Droplets } from 'lucide-react';
 import { Observacao, ObservacaoTipo } from '../types';
 
 interface SidebarProps {
@@ -20,6 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, obser
     { id: 'production', label: 'Controle de Produção', icon: Factory },
     { id: 'roadmap', label: 'Roteiro de Equipe', icon: ClipboardList },
     { id: 'reactors', label: 'Status Reatores', icon: Cylinder },
+    { id: 'tanks', label: 'Tanque de Armazenagem', icon: Droplets },
   ];
 
   const handleSubmit = () => {

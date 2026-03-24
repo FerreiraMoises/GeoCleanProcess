@@ -4,6 +4,7 @@ import { Dashboard } from './components/Dashboard';
 import { ProductionControl } from './components/ProductionControl';
 import { ManufacturingRoadmap } from './components/ManufacturingRoadmap';
 import { ReactorControl } from './components/ReactorControl';
+import { StorageTanks } from './components/StorageTanks';
 import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './constants';
 import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
 import {
@@ -167,6 +168,8 @@ const App: React.FC = () => {
         );
       case 'reactors':
         return <ReactorControl reactors={reactors} onUpdateReactor={handleUpdateReactor} />;
+      case 'tanks':
+        return <StorageTanks />;
       default:
         return <Dashboard logs={logs} tasks={tasks} employees={employees} />;
     }
