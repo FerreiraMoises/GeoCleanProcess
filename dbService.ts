@@ -190,3 +190,8 @@ export async function addObservation(obs: Observacao): Promise<void> {
     });
     if (error) throw error;
 }
+
+export async function deleteObservation(id: string): Promise<void> {
+    const { error } = await supabase.from('observations').delete().eq('id', id);
+    if (error) throw error;
+}

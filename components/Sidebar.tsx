@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Factory, ClipboardList, Cylinder, PieChart, AlertTriangle, X, Wrench, PackageX, Clock, Droplets } from 'lucide-react';
+import { Factory, ClipboardList, Cylinder, PieChart, AlertTriangle, X, Wrench, PackageX, Clock, Droplets, CheckCircle2 } from 'lucide-react';
 import { Observacao, ObservacaoTipo } from '../types';
 
 interface SidebarProps {
@@ -7,9 +7,10 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   observacoes: Observacao[];
   onAddObservacao: (obs: Observacao) => void;
+  onDeleteObservacao: (id: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, observacoes, onAddObservacao }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, observacoes, onAddObservacao, onDeleteObservacao }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [tipo, setTipo] = useState<ObservacaoTipo>('quebra_equipamento');
   const [descricao, setDescricao] = useState('');
@@ -226,7 +227,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, obser
                           {obs.timestamp}
                         </span>
                       </div>
-                      <p className="leading-snug opacity-90">{obs.descricao}</p>
+                      <p className="leading-snug opacity-90 mb-2">{obs.descricao}</p>
+                      {/* Resolvido button */}
+                      <button
+                        onClick={() => onDeleteObservacao(obs.id)}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-green-600 text-white text-[11px] font-bold hover:bg-green-700 transition-colors shadow-sm w-full justify-center mt-1"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Resolvido?
+                      </button>
                     </div>
                   ))}
                 </div>

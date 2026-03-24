@@ -9,7 +9,7 @@ import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './constants';
 import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
 import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
-  addLog, addTask, updateTaskStatus, updateReactor, addObservation,
+  addLog, addTask, updateTaskStatus, updateReactor, addObservation, deleteObservation,
   seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks,
 } from "./dbService";
 
@@ -143,6 +143,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteObservacao = async (id: string) => {
+    try {
+      await deleteObservation(id);
+      setObservacoes(prev => prev.filter(o => o.id !== id));
+    } catch (err) {
+      console.error('Erro ao deletar observação:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -189,7 +198,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex font-sans text-slate-900 bg-slate-50 min-h-screen">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} observacoes={observacoes} onAddObservacao={handleAddObservacao} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} observacoes={observacoes} onAddObservacao={handleAddObservacao} onDeleteObservacao={handleDeleteObservacao} />
       <main className="flex-1 ml-64">
         <div className="max-w-7xl mx-auto">
           {renderContent()}
