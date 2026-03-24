@@ -4,7 +4,7 @@ import { Dashboard } from './components/Dashboard';
 import { ProductionControl } from './components/ProductionControl';
 import { ManufacturingRoadmap } from './components/ManufacturingRoadmap';
 import { ReactorControl } from './components/ReactorControl';
-import { StorageTanks } from './components/StorageTanks';
+import { StorageTanks, INITIAL_TANKS_STATE, StorageTanksState } from './components/StorageTanks';
 import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './constants';
 import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
 import {
@@ -22,6 +22,9 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [reactors, setReactors] = useState<ReactorState[]>([]);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
+
+  // Tank state — persists across tab switches
+  const [tanksState, setTanksState] = useState<StorageTanksState>(INITIAL_TANKS_STATE);
 
   // Carrega dados do banco na inicialização. Se estiver vazio, popula com dados iniciais.
   useEffect(() => {
@@ -169,7 +172,16 @@ const App: React.FC = () => {
       case 'reactors':
         return <ReactorControl reactors={reactors} onUpdateReactor={handleUpdateReactor} />;
       case 'tanks':
-        return <StorageTanks />;
+        return (
+          <StorageTanks
+            volumes={tanksState.volumes}
+            products={tanksState.products}
+            pumpOn={tanksState.pumpOn}
+            onVolumesChange={v => setTanksState(s => ({ ...s, volumes: v }))}
+            onProductsChange={p => setTanksState(s => ({ ...s, products: p }))}
+            onPumpChange={on => setTanksState(s => ({ ...s, pumpOn: on }))}
+          />
+        );
       default:
         return <Dashboard logs={logs} tasks={tasks} employees={employees} />;
     }
