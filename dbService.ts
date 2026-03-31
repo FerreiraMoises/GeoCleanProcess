@@ -1,6 +1,14 @@
 import { supabase } from './supabaseClient';
 import { Employee, ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
 
+// ─── Tipo local para tanques ───────────────────────────────────────────────────
+export interface TankRow {
+    id: string;        // 'T1'...'T5'
+    volume: number;
+    product: string;
+    pumpOn: boolean;
+}
+
 // ─── EMPLOYEES ────────────────────────────────────────────────────────────────
 
 export async function fetchEmployees(): Promise<Employee[]> {
@@ -193,5 +201,39 @@ export async function addObservation(obs: Observacao): Promise<void> {
 
 export async function deleteObservation(id: string): Promise<void> {
     const { error } = await supabase.from('observations').delete().eq('id', id);
+    if (error) throw error;
+}
+
+// ─── STORAGE TANKS ────────────────────────────────────────────────────────────
+
+export async function fetchTanks(): Promise<TankRow[]> {
+    const { data, error } = await supabase
+        .from('storage_tanks')
+        .select('*')
+        .order('id');
+    if (error) throw error;
+    return (data as any[]).map(row => ({
+        id: row.id,
+        volume: Number(row.volume),
+        product: row.product ?? '',
+        pumpOn: Boolean(row.pump_on),
+    }));
+}
+
+export async function updateTank(
+    id: string,
+    volume: number,
+    product: string,
+    pumpOn: boolean,
+): Promise<void> {
+    const { error } = await supabase
+        .from('storage_tanks')
+        .update({
+            volume,
+            product,
+            pump_on: pumpOn,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
     if (error) throw error;
 }

@@ -11,6 +11,7 @@ import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
   addLog, addTask, updateTaskStatus, updateReactor, addObservation, deleteObservation,
   seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks,
+  fetchTanks, updateTank,
 } from "./dbService";
 
 const App: React.FC = () => {
@@ -65,6 +66,24 @@ const App: React.FC = () => {
         // Observações
         const dbObs = await fetchObservations();
         setObservacoes(dbObs);
+
+        // Tanques de Armazenagem
+        try {
+          const dbTanks = await fetchTanks();
+          if (dbTanks.length > 0) {
+            const volumes: Record<string, string> = {};
+            const products: Record<string, string> = {};
+            let pumpOn = false;
+            dbTanks.forEach(t => {
+              volumes[t.id] = t.volume > 0 ? String(t.volume) : '';
+              products[t.id] = t.product;
+              if (t.id === 'T4') pumpOn = t.pumpOn;
+            });
+            setTanksState({ volumes, products, pumpOn });
+          }
+        } catch (tankErr) {
+          console.warn('Tabela storage_tanks ainda não existe, usando estado local.', tankErr);
+        }
       } catch (err) {
         console.error('Erro ao carregar dados do Supabase:', err);
         // Fallback para dados locais em caso de erro
@@ -180,17 +199,53 @@ const App: React.FC = () => {
         );
       case 'reactors':
         return <ReactorControl reactors={reactors} onUpdateReactor={handleUpdateReactor} />;
-      case 'tanks':
+      case 'tanks': {
+        const saveTank = async (
+          id: string,
+          newVolumes: Record<string, string>,
+          newProducts: Record<string, string>,
+          newPumpOn: boolean,
+        ) => {
+          try {
+            await updateTank(
+              id,
+              parseFloat(newVolumes[id]) || 0,
+              newProducts[id] ?? '',
+              id === 'T4' ? newPumpOn : tanksState.pumpOn,
+            );
+          } catch (e) {
+            console.warn('Erro ao salvar tanque no Supabase:', e);
+          }
+        };
         return (
           <StorageTanks
             volumes={tanksState.volumes}
             products={tanksState.products}
             pumpOn={tanksState.pumpOn}
-            onVolumesChange={v => setTanksState(s => ({ ...s, volumes: v }))}
-            onProductsChange={p => setTanksState(s => ({ ...s, products: p }))}
-            onPumpChange={on => setTanksState(s => ({ ...s, pumpOn: on }))}
+            onVolumesChange={v => {
+              setTanksState(s => ({ ...s, volumes: v }));
+              // Persiste todos os tanques cujo volume mudou
+              Object.keys(v).forEach(id => {
+                if (v[id] !== tanksState.volumes[id]) {
+                  saveTank(id, v, tanksState.products, tanksState.pumpOn);
+                }
+              });
+            }}
+            onProductsChange={p => {
+              setTanksState(s => ({ ...s, products: p }));
+              Object.keys(p).forEach(id => {
+                if (p[id] !== tanksState.products[id]) {
+                  saveTank(id, tanksState.volumes, p, tanksState.pumpOn);
+                }
+              });
+            }}
+            onPumpChange={on => {
+              setTanksState(s => ({ ...s, pumpOn: on }));
+              saveTank('T4', tanksState.volumes, tanksState.products, on);
+            }}
           />
         );
+      }
       default:
         return <Dashboard logs={logs} tasks={tasks} employees={employees} />;
     }
