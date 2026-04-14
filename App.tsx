@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { ProductionControl } from './components/ProductionControl';
@@ -11,7 +11,7 @@ import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
   addLog, addTask, updateTaskStatus, updateReactor, addObservation, deleteObservation,
   seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks,
-  fetchTanks, updateTank,
+  fetchTanks, updateTank, seedTanks,
 } from "./dbService";
 
 const App: React.FC = () => {
@@ -27,7 +27,10 @@ const App: React.FC = () => {
   // Tank state — persists across tab switches
   const [tanksState, setTanksState] = useState<StorageTanksState>(INITIAL_TANKS_STATE);
 
-  // Carrega dados do banco na inicialização. Se estiver vazio, popula com dados iniciais.
+  // Ref para debounce do save de volumes (evita salvar a cada tecla digitada)
+  const volumeSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Carrega todos os dados do banco na inicialização ──────────────────────
   useEffect(() => {
     async function initData() {
       try {
@@ -67,8 +70,11 @@ const App: React.FC = () => {
         const dbObs = await fetchObservations();
         setObservacoes(dbObs);
 
-        // Tanques de Armazenagem
+        // ── Tanques de Armazenagem ──────────────────────────────────────────
         try {
+          // Garante que os 5 registros existam (ignoreDuplicates = não sobrescreve dados reais)
+          await seedTanks();
+
           const dbTanks = await fetchTanks();
           if (dbTanks.length > 0) {
             const volumes: Record<string, string> = {};
@@ -82,11 +88,11 @@ const App: React.FC = () => {
             setTanksState({ volumes, products, pumpOn });
           }
         } catch (tankErr) {
-          console.warn('Tabela storage_tanks ainda não existe, usando estado local.', tankErr);
+          console.warn('[Tanques] Erro ao carregar — usando estado local.', tankErr);
         }
       } catch (err) {
         console.error('Erro ao carregar dados do Supabase:', err);
-        // Fallback para dados locais em caso de erro
+        // Fallback para dados locais
         setLogs(MOCK_LOGS);
         setTasks(MOCK_TASKS);
         setReactors(MOCK_REACTORS);
@@ -97,7 +103,7 @@ const App: React.FC = () => {
     initData();
   }, []);
 
-  // Limpeza automática de tarefas concluídas a cada 12 horas
+  // ─── Limpeza automática de tarefas concluídas a cada 12 horas ─────────────
   useEffect(() => {
     const cleanCompleted = async () => {
       try {
@@ -111,11 +117,12 @@ const App: React.FC = () => {
       }
     };
 
-    // Executa imediatamente ao carregar e depois a cada 12 horas
     cleanCompleted();
     const interval = setInterval(cleanCompleted, 12 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // ─── Handlers gerais ───────────────────────────────────────────────────────
 
   const handleAddLog = async (newLog: ProductionLog) => {
     try {
@@ -171,6 +178,69 @@ const App: React.FC = () => {
     }
   };
 
+  // ─── Handlers dos Tanques (fora do renderContent para estabilidade) ─────────
+
+  /**
+   * Salva um tanque imediatamente.
+   * Recebe os valores NOVOS explicitamente para evitar problemas de closure.
+   */
+  const saveTankNow = useCallback(async (
+    id: string,
+    volumes: Record<string, string>,
+    products: Record<string, string>,
+    pumpOn: boolean,
+  ) => {
+    try {
+      await updateTank(
+        id,
+        parseFloat(volumes[id]) || 0,
+        products[id] ?? '',
+        pumpOn,
+      );
+      console.log(`[Tanques] ${id} salvo — vol=${volumes[id]}, prod=${products[id]}, pump=${pumpOn}`);
+    } catch (e) {
+      console.warn(`[Tanques] Erro ao salvar ${id}:`, e);
+    }
+  }, []);
+
+  /** Atualiza volumes no state e persiste no Supabase com debounce de 800 ms. */
+  const handleVolumesChange = useCallback((newVolumes: Record<string, string>) => {
+    setTanksState(prev => {
+      const changedIds = Object.keys(newVolumes).filter(id => newVolumes[id] !== prev.volumes[id]);
+
+      // Debounce: cancela o timer anterior e agenda novo save
+      if (volumeSaveTimer.current) clearTimeout(volumeSaveTimer.current);
+      volumeSaveTimer.current = setTimeout(() => {
+        changedIds.forEach(id => {
+          saveTankNow(id, newVolumes, prev.products, prev.pumpOn);
+        });
+      }, 800);
+
+      return { ...prev, volumes: newVolumes };
+    });
+  }, [saveTankNow]);
+
+  /** Atualiza produtos no state e persiste imediatamente no Supabase. */
+  const handleProductsChange = useCallback((newProducts: Record<string, string>) => {
+    setTanksState(prev => {
+      const changedIds = Object.keys(newProducts).filter(id => newProducts[id] !== prev.products[id]);
+      changedIds.forEach(id => {
+        saveTankNow(id, prev.volumes, newProducts, prev.pumpOn);
+      });
+      return { ...prev, products: newProducts };
+    });
+  }, [saveTankNow]);
+
+  /** Atualiza o estado da bomba T4 e persiste imediatamente no Supabase. */
+  const handlePumpChange = useCallback((newPumpOn: boolean) => {
+    setTanksState(prev => {
+      saveTankNow('T4', prev.volumes, prev.products, newPumpOn);
+      return { ...prev, pumpOn: newPumpOn };
+    });
+  }, [saveTankNow]);
+
+  // ─── Tela de carregamento ──────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -181,6 +251,8 @@ const App: React.FC = () => {
       </div>
     );
   }
+
+  // ─── Renderização das abas ─────────────────────────────────────────────────
 
   const renderContent = () => {
     switch (activeTab) {
@@ -199,53 +271,17 @@ const App: React.FC = () => {
         );
       case 'reactors':
         return <ReactorControl reactors={reactors} onUpdateReactor={handleUpdateReactor} />;
-      case 'tanks': {
-        const saveTank = async (
-          id: string,
-          newVolumes: Record<string, string>,
-          newProducts: Record<string, string>,
-          newPumpOn: boolean,
-        ) => {
-          try {
-            await updateTank(
-              id,
-              parseFloat(newVolumes[id]) || 0,
-              newProducts[id] ?? '',
-              id === 'T4' ? newPumpOn : tanksState.pumpOn,
-            );
-          } catch (e) {
-            console.warn('Erro ao salvar tanque no Supabase:', e);
-          }
-        };
+      case 'tanks':
         return (
           <StorageTanks
             volumes={tanksState.volumes}
             products={tanksState.products}
             pumpOn={tanksState.pumpOn}
-            onVolumesChange={v => {
-              setTanksState(s => ({ ...s, volumes: v }));
-              // Persiste todos os tanques cujo volume mudou
-              Object.keys(v).forEach(id => {
-                if (v[id] !== tanksState.volumes[id]) {
-                  saveTank(id, v, tanksState.products, tanksState.pumpOn);
-                }
-              });
-            }}
-            onProductsChange={p => {
-              setTanksState(s => ({ ...s, products: p }));
-              Object.keys(p).forEach(id => {
-                if (p[id] !== tanksState.products[id]) {
-                  saveTank(id, tanksState.volumes, p, tanksState.pumpOn);
-                }
-              });
-            }}
-            onPumpChange={on => {
-              setTanksState(s => ({ ...s, pumpOn: on }));
-              saveTank('T4', tanksState.volumes, tanksState.products, on);
-            }}
+            onVolumesChange={handleVolumesChange}
+            onProductsChange={handleProductsChange}
+            onPumpChange={handlePumpChange}
           />
         );
-      }
       default:
         return <Dashboard logs={logs} tasks={tasks} employees={employees} />;
     }
@@ -264,7 +300,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-function newFunction() {
-  "./services/supabaseClient";
-}

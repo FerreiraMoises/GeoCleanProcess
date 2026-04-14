@@ -220,6 +220,25 @@ export async function fetchTanks(): Promise<TankRow[]> {
     }));
 }
 
+/** Inicializa os 5 registros de tanque se ainda não existirem. */
+export async function seedTanks(): Promise<void> {
+    const rows = ['T1', 'T2', 'T3', 'T4', 'T5'].map(id => ({
+        id,
+        volume: 0,
+        product: '',
+        pump_on: false,
+        updated_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase
+        .from('storage_tanks')
+        .upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) throw error;
+}
+
+/**
+ * Salva (ou cria) um tanque via upsert — funciona mesmo se a linha
+ * ainda não existir na tabela.
+ */
 export async function updateTank(
     id: string,
     volume: number,
@@ -228,12 +247,15 @@ export async function updateTank(
 ): Promise<void> {
     const { error } = await supabase
         .from('storage_tanks')
-        .update({
-            volume,
-            product,
-            pump_on: pumpOn,
-            updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
+        .upsert(
+            {
+                id,
+                volume,
+                product,
+                pump_on: pumpOn,
+                updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' },
+        );
     if (error) throw error;
 }
