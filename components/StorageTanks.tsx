@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tag, X } from 'lucide-react';
+import { Tag, X, Save, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface Tank {
   id: string;
@@ -282,17 +282,34 @@ export const INITIAL_TANKS_STATE: StorageTanksState = {
   pumpOn: false,
 };
 
+type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
+
 interface StorageTanksProps extends StorageTanksState {
   onVolumesChange: (v: VolumeMap) => void;
   onProductsChange: (p: ProductMap) => void;
   onPumpChange: (on: boolean) => void;
+  onSaveAll?: () => Promise<void>;
 }
 
 export const StorageTanks: React.FC<StorageTanksProps> = ({
   volumes, products, pumpOn,
-  onVolumesChange, onProductsChange, onPumpChange,
+  onVolumesChange, onProductsChange, onPumpChange, onSaveAll,
 }) => {
   const [editingProduct, setEditingProduct] = React.useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+
+  const handleSaveAll = async () => {
+    if (!onSaveAll || saveStatus === 'saving') return;
+    setSaveStatus('saving');
+    try {
+      await onSaveAll();
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2500);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  };
 
   const handleVolumeChange = (id: string, value: string) => {
     const tank = TANKS.find(t => t.id === id)!;
@@ -324,14 +341,42 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
   return (
     <div className="p-6 min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-          <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 text-white text-lg">🛢</span>
-          Tanques de Armazenagem
-        </h1>
-        <p className="text-slate-500 mt-1 text-sm">
-          Monitore o nível de produto em cada tanque. Digite o volume atual para visualizar o nível.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 text-white text-lg">🛢</span>
+            Tanques de Armazenagem
+          </h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Monitore o nível de produto em cada tanque. Digite o volume atual para visualizar o nível.
+          </p>
+        </div>
+
+        {/* Save button */}
+        {onSaveAll && (
+          <button
+            onClick={handleSaveAll}
+            disabled={saveStatus === 'saving'}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all duration-300 ${
+              saveStatus === 'saving'
+                ? 'bg-blue-400 text-white cursor-not-allowed'
+                : saveStatus === 'success'
+                ? 'bg-green-500 text-white shadow-green-200'
+                : saveStatus === 'error'
+                ? 'bg-red-500 text-white shadow-red-200'
+                : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-blue-200 hover:-translate-y-0.5'
+            }`}
+          >
+            {saveStatus === 'saving' && <Loader2 className="w-4 h-4 animate-spin" />}
+            {saveStatus === 'success' && <CheckCircle className="w-4 h-4" />}
+            {saveStatus === 'error' && <AlertCircle className="w-4 h-4" />}
+            {saveStatus === 'idle' && <Save className="w-4 h-4" />}
+            {saveStatus === 'saving' && 'Salvando...'}
+            {saveStatus === 'success' && 'Salvo!'}
+            {saveStatus === 'error' && 'Erro ao salvar'}
+            {saveStatus === 'idle' && 'Salvar Dados'}
+          </button>
+        )}
       </div>
 
       {/* Tanks Grid */}

@@ -239,6 +239,17 @@ const App: React.FC = () => {
     });
   }, [saveTankNow]);
 
+  /** Salva todos os 5 tanques imediatamente (chamado pelo botão Salvar Dados). */
+  const handleSaveAllTanks = useCallback(async () => {
+    const { volumes, products, pumpOn } = tanksState;
+    await Promise.all(
+      ['T1', 'T2', 'T3', 'T4', 'T5'].map(id =>
+        saveTankNow(id, volumes, products, id === 'T4' ? pumpOn : false)
+      )
+    );
+    console.log('[Tanques] Todos os tanques salvos via botão.');
+  }, [saveTankNow, tanksState]);
+
   // ─── Tela de carregamento ──────────────────────────────────────────────────
 
   if (loading) {
@@ -280,6 +291,7 @@ const App: React.FC = () => {
             onVolumesChange={handleVolumesChange}
             onProductsChange={handleProductsChange}
             onPumpChange={handlePumpChange}
+            onSaveAll={handleSaveAllTanks}
           />
         );
       default:
