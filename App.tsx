@@ -30,6 +30,10 @@ const App: React.FC = () => {
   // Ref para debounce do save de volumes (evita salvar a cada tecla digitada)
   const volumeSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ref que mantém sempre o estado mais recente dos tanques acessível nos callbacks
+  const tanksStateRef = useRef<StorageTanksState>(INITIAL_TANKS_STATE);
+  useEffect(() => { tanksStateRef.current = tanksState; }, [tanksState]);
+
   // ─── Carrega todos os dados do banco na inicialização ──────────────────────
   useEffect(() => {
     async function initData() {
@@ -122,6 +126,33 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // ─── Polling: sincroniza tanques a cada 30 s para múltiplos usuários ──────
+  useEffect(() => {
+    const syncTanks = async () => {
+      // Se o usuário está digitando (save pendente), não sobrescreve os dados locais
+      if (volumeSaveTimer.current) return;
+      try {
+        const dbTanks = await fetchTanks();
+        if (dbTanks.length > 0) {
+          const volumes: Record<string, string> = {};
+          const products: Record<string, string> = {};
+          let pumpOn = false;
+          dbTanks.forEach(t => {
+            volumes[t.id] = t.volume > 0 ? String(t.volume) : '';
+            products[t.id] = t.product;
+            if (t.id === 'T4') pumpOn = t.pumpOn;
+          });
+          setTanksState({ volumes, products, pumpOn });
+        }
+      } catch (e) {
+        console.warn('[Tanques] Erro na sincronização periódica:', e);
+      }
+    };
+
+    const interval = setInterval(syncTanks, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   // ─── Handlers gerais ───────────────────────────────────────────────────────
 
   const handleAddLog = async (newLog: ProductionLog) => {
@@ -203,40 +234,42 @@ const App: React.FC = () => {
     }
   }, []);
 
-  /** Atualiza volumes no state e persiste no Supabase com debounce de 800 ms. */
+  /**
+   * Atualiza volumes no state e persiste no Supabase com debounce de 800 ms.
+   * CORREÇÃO: setTimeout fora do setTanksState para evitar side-effects em setter puro.
+   */
   const handleVolumesChange = useCallback((newVolumes: Record<string, string>) => {
-    setTanksState(prev => {
-      const changedIds = Object.keys(newVolumes).filter(id => newVolumes[id] !== prev.volumes[id]);
+    const currentState = tanksStateRef.current;
+    const changedIds = Object.keys(newVolumes).filter(
+      id => newVolumes[id] !== currentState.volumes[id]
+    );
 
-      // Debounce: cancela o timer anterior e agenda novo save
-      if (volumeSaveTimer.current) clearTimeout(volumeSaveTimer.current);
-      volumeSaveTimer.current = setTimeout(() => {
-        changedIds.forEach(id => {
-          saveTankNow(id, newVolumes, prev.products, prev.pumpOn);
-        });
-      }, 800);
+    // Atualiza o state local imediatamente
+    setTanksState(prev => ({ ...prev, volumes: newVolumes }));
 
-      return { ...prev, volumes: newVolumes };
-    });
+    // Debounce do save: fora do setter (sem side-effects no setState)
+    if (changedIds.length === 0) return;
+    if (volumeSaveTimer.current) clearTimeout(volumeSaveTimer.current);
+    volumeSaveTimer.current = setTimeout(() => {
+      volumeSaveTimer.current = null;
+      const { products, pumpOn } = tanksStateRef.current;
+      changedIds.forEach(id => saveTankNow(id, newVolumes, products, pumpOn));
+    }, 800);
   }, [saveTankNow]);
 
   /** Atualiza produtos no state e persiste imediatamente no Supabase. */
   const handleProductsChange = useCallback((newProducts: Record<string, string>) => {
-    setTanksState(prev => {
-      const changedIds = Object.keys(newProducts).filter(id => newProducts[id] !== prev.products[id]);
-      changedIds.forEach(id => {
-        saveTankNow(id, prev.volumes, newProducts, prev.pumpOn);
-      });
-      return { ...prev, products: newProducts };
-    });
+    const { volumes, pumpOn, products: prevProducts } = tanksStateRef.current;
+    const changedIds = Object.keys(newProducts).filter(id => newProducts[id] !== prevProducts[id]);
+    setTanksState(prev => ({ ...prev, products: newProducts }));
+    changedIds.forEach(id => saveTankNow(id, volumes, newProducts, pumpOn));
   }, [saveTankNow]);
 
   /** Atualiza o estado da bomba T4 e persiste imediatamente no Supabase. */
   const handlePumpChange = useCallback((newPumpOn: boolean) => {
-    setTanksState(prev => {
-      saveTankNow('T4', prev.volumes, prev.products, newPumpOn);
-      return { ...prev, pumpOn: newPumpOn };
-    });
+    const { volumes, products } = tanksStateRef.current;
+    setTanksState(prev => ({ ...prev, pumpOn: newPumpOn }));
+    saveTankNow('T4', volumes, products, newPumpOn);
   }, [saveTankNow]);
 
   /** Salva todos os 5 tanques imediatamente (chamado pelo botão Salvar Dados). */
