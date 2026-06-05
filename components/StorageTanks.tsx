@@ -125,9 +125,11 @@ const PumpSVG: React.FC<PumpSVGProps> = ({ pumpOn }) => (
 interface TankSVGProps {
   pct: number;
   tankId: string;
+  pumpOn: boolean;
+  hasPump: boolean;
 }
 
-const TankSVG: React.FC<TankSVGProps> = ({ pct, tankId }) => {
+const TankSVG: React.FC<TankSVGProps> = ({ pct, tankId, pumpOn, hasPump }) => {
   const clampedPct = Math.min(100, Math.max(0, pct));
   const colors = getLevelColor(clampedPct);
   const tankH = 180;
@@ -137,7 +139,7 @@ const TankSVG: React.FC<TankSVGProps> = ({ pct, tankId }) => {
   const uid = tankId;
 
   return (
-    <svg viewBox="0 0 130 230" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+    <svg viewBox="0 0 150 245" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
       <defs>
         <linearGradient id={`metal-${uid}`} x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#94a3b8" />
@@ -167,12 +169,12 @@ const TankSVG: React.FC<TankSVGProps> = ({ pct, tankId }) => {
             <path fill={colors.wave} opacity="0.7">
               <animate
                 attributeName="d"
-                dur="2.5s"
+                dur={pumpOn ? "1.2s" : "2.5s"}
                 repeatCount="indefinite"
                 values={`
-                  M15,${30 + fillY} Q32,${30 + fillY - 6} 50,${30 + fillY} Q82,${30 + fillY + 6} 115,${30 + fillY} L115,${tankH + 30} L15,${tankH + 30} Z;
-                  M15,${30 + fillY} Q32,${30 + fillY + 6} 50,${30 + fillY} Q82,${30 + fillY - 6} 115,${30 + fillY} L115,${tankH + 30} L15,${tankH + 30} Z;
-                  M15,${30 + fillY} Q32,${30 + fillY - 6} 50,${30 + fillY} Q82,${30 + fillY + 6} 115,${30 + fillY} L115,${tankH + 30} L15,${tankH + 30} Z
+                  M15,${30 + fillY} Q32,${30 + fillY - (pumpOn ? 10 : 6)} 50,${30 + fillY} Q82,${30 + fillY + (pumpOn ? 10 : 6)} 115,${30 + fillY} L115,${tankH + 30} L15,${tankH + 30} Z;
+                  M15,${30 + fillY} Q32,${30 + fillY + (pumpOn ? 10 : 6)} 50,${30 + fillY} Q82,${30 + fillY - (pumpOn ? 10 : 6)} 115,${30 + fillY} L115,${tankH + 30} L15,${tankH + 30} Z;
+                  M15,${30 + fillY} Q32,${30 + fillY - (pumpOn ? 10 : 6)} 50,${30 + fillY} Q82,${30 + fillY + (pumpOn ? 10 : 6)} 115,${30 + fillY} L115,${tankH + 30} L15,${tankH + 30} Z
                 `}
               />
             </path>
@@ -180,6 +182,34 @@ const TankSVG: React.FC<TankSVGProps> = ({ pct, tankId }) => {
           </>
         )}
       </g>
+
+      {/* Rising Bubbles (agitating effect inside the liquid) */}
+      {hasPump && pumpOn && clampedPct > 0 && (
+        <g clipPath={`url(#clip-${uid})`}>
+          {/* Rising bubble 1 */}
+          <circle cx="40" cy="210" r="2.5" fill="white" opacity="0.7">
+            <animate attributeName="cy" from="210" to={30 + fillY} dur="1.2s" repeatCount="indefinite" />
+            <animate attributeName="cx" values="37;43;37" dur="1.2s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.7;0.9;0" dur="1.2s" repeatCount="indefinite" />
+          </circle>
+          {/* Rising bubble 2 */}
+          <circle cx="65" cy="210" r="3.5" fill="white" opacity="0.6">
+            <animate attributeName="cy" from="210" to={30 + fillY} dur="1.6s" begin="0.4s" repeatCount="indefinite" />
+            <animate attributeName="cx" values="68;62;68" dur="1.6s" begin="0.4s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.6;0.8;0" dur="1.6s" begin="0.4s" repeatCount="indefinite" />
+          </circle>
+          {/* Rising bubble 3 */}
+          <circle cx="85" cy="210" r="2" fill="white" opacity="0.8">
+            <animate attributeName="cy" from="210" to={30 + fillY} dur="1.0s" begin="0.8s" repeatCount="indefinite" />
+            <animate attributeName="cx" values="83;87;83" dur="1.0s" begin="0.8s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.8;1;0" dur="1.0s" begin="0.8s" repeatCount="indefinite" />
+          </circle>
+          {/* Agitation vortex lines */}
+          <path d={`M 35,${30 + fillY + 20} Q 50,${30 + fillY + 30} 65,${30 + fillY + 20} T 95,${30 + fillY + 20}`} fill="none" stroke="white" strokeWidth="1.5" opacity="0.3">
+            <animate attributeName="stroke-dasharray" values="0,100;100,0;0,100" dur="1.5s" repeatCount="indefinite" />
+          </path>
+        </g>
+      )}
 
       {/* Bottom cap */}
       <ellipse cx="65" cy={tankH + 30} rx="50" ry="10" fill={`url(#metal-${uid})`} stroke="#64748b" strokeWidth="1" />
@@ -193,6 +223,49 @@ const TankSVG: React.FC<TankSVGProps> = ({ pct, tankId }) => {
       {/* Bottom exit pipe */}
       <rect x="58" y={tankH + 37} width="14" height="12" fill="#64748b" />
       <rect x="45" y={tankH + 47} width="40" height="7" rx="3" fill="#64748b" />
+
+      {/* Recirculation Loop (only for T4 and T5) */}
+      {hasPump && (
+        <>
+          {/* Pipe shadow / border */}
+          <path d="M 65,227 L 65,234 L 132,234 L 132,45 L 80,45 L 80,32" fill="none" stroke="#64748b" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Inner liquid channel */}
+          <path d="M 65,227 L 65,234 L 132,234 L 132,45 L 80,45 L 80,32" fill="none" stroke={pumpOn ? colors.wave : '#475569'} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+
+          {/* Flow animation particles */}
+          {pumpOn && (
+            <path d="M 65,227 L 65,234 L 132,234 L 132,45 L 80,45 L 80,32" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6,12">
+              <animate attributeName="stroke-dashoffset" from="36" to="0" dur="0.9s" repeatCount="indefinite" />
+            </path>
+          )}
+
+          {/* Mini Inline Pump in loop */}
+          <circle cx="132" cy="140" r="10" fill={pumpOn ? '#2563eb' : '#475569'} stroke="#64748b" strokeWidth="1.5" />
+          <circle cx="132" cy="140" r="6" fill="none" stroke="white" strokeWidth="1.5" strokeDasharray="3,3">
+            {pumpOn && (
+              <animateTransform attributeName="transform" type="rotate" from="0 132 140" to="360 132 140" dur="0.8s" repeatCount="indefinite" />
+            )}
+          </circle>
+
+          {/* Spraying/reentering liquid at the top */}
+          {pumpOn && clampedPct > 0 && (
+            <>
+              <circle cx="80" cy="35" r="2.5" fill={colors.wave}>
+                <animate attributeName="cy" from="35" to={30 + fillY} dur="0.5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;1;0" dur="0.5s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="77" cy="35" r="1.8" fill={colors.wave}>
+                <animate attributeName="cy" from="35" to={30 + fillY} dur="0.7s" begin="0.15s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;1;0" dur="0.7s" begin="0.15s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="83" cy="35" r="2" fill={colors.wave}>
+                <animate attributeName="cy" from="35" to={30 + fillY} dur="0.6s" begin="0.3s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;1;0" dur="0.6s" begin="0.3s" repeatCount="indefinite" />
+              </circle>
+            </>
+          )}
+        </>
+      )}
     </svg>
   );
 };
@@ -274,12 +347,14 @@ export interface StorageTanksState {
   volumes: VolumeMap;
   products: ProductMap;
   pumpOn: boolean;
+  pumpOnT5: boolean;
 }
 
 export const INITIAL_TANKS_STATE: StorageTanksState = {
   volumes: { T1: '', T2: '', T3: '', T4: '', T5: '' },
   products: { T1: '', T2: '', T3: '', T4: '', T5: '' },
   pumpOn: false,
+  pumpOnT5: false,
 };
 
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
@@ -287,12 +362,12 @@ type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 interface StorageTanksProps extends StorageTanksState {
   onVolumesChange: (v: VolumeMap) => void;
   onProductsChange: (p: ProductMap) => void;
-  onPumpChange: (on: boolean) => void;
+  onPumpChange: (tankId: string, on: boolean) => void;
   onSaveAll?: () => Promise<void>;
 }
 
 export const StorageTanks: React.FC<StorageTanksProps> = ({
-  volumes, products, pumpOn,
+  volumes, products, pumpOn, pumpOnT5,
   onVolumesChange, onProductsChange, onPumpChange, onSaveAll,
 }) => {
   const [editingProduct, setEditingProduct] = React.useState<string | null>(null);
@@ -386,13 +461,16 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
           const colors = getLevelColor(pct);
           const status = getStatusLabel(pct);
           const isT4 = tank.id === 'T4';
+          const isT5 = tank.id === 'T5';
+          const hasPump = isT4 || isT5;
+          const isPumpOn = isT4 ? pumpOn : isT5 ? pumpOnT5 : false;
           const product = products[tank.id];
 
           return (
             <div
               key={tank.id}
               className={`bg-white rounded-2xl border shadow-sm flex flex-col items-center p-4 transition-all duration-300 ${
-                isT4 ? 'border-blue-200' : 'border-slate-200'
+                hasPump ? 'border-blue-200' : 'border-slate-200'
               }`}
               style={pct > 0 ? { boxShadow: `0 4px 24px 0 ${colors.glow}` } : undefined}
             >
@@ -400,14 +478,14 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
               <div className="flex items-center justify-between w-full mb-2">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-700 text-lg">{tank.label}</span>
-                  {isT4 && (
+                  {hasPump && (
                     <span className="text-[10px] bg-blue-100 text-blue-600 font-semibold px-2 py-0.5 rounded-full">+ BOMBA</span>
                   )}
                 </div>
                 <span className="text-xs text-slate-400 font-medium">Cap.: {tank.capacity} M³</span>
               </div>
 
-              {/* ── Produto button / badge ── */}
+              {/* ── Produto badge ── */}
               <div className="w-full mb-3">
                 <button
                   onClick={() => setEditingProduct(tank.id)}
@@ -424,7 +502,7 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
 
               {/* SVG Tank */}
               <div className="w-full h-52 flex items-center justify-center">
-                <TankSVG pct={pct} tankId={tank.id} />
+                <TankSVG pct={pct} tankId={tank.id} pumpOn={isPumpOn} hasPump={hasPump} />
               </div>
 
               {/* Level indicators */}
@@ -468,39 +546,39 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
                 </div>
               </div>
 
-              {/* ── T4 Pump section ── */}
-              {isT4 && (
+              {/* ── Pump section (T4 & T5) ── */}
+              {hasPump && (
                 <div className="w-full mt-4 pt-3 border-t border-slate-100">
                   {/* Pump diagram */}
                   <div className={`w-full h-24 rounded-xl p-2 mb-3 transition-all duration-300 ${
-                    pumpOn ? 'bg-blue-950' : 'bg-slate-800'
+                    isPumpOn ? 'bg-blue-950' : 'bg-slate-800'
                   }`}>
-                    <PumpSVG pumpOn={pumpOn} />
+                    <PumpSVG pumpOn={isPumpOn} />
                   </div>
 
                   {/* Ligar Bomba button */}
                   <button
-                    onClick={() => onPumpChange(!pumpOn)}
+                    onClick={() => onPumpChange(tank.id, !isPumpOn)}
                     className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
-                      pumpOn
+                      isPumpOn
                         ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200'
                         : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
                     }`}
                   >
-                    <span className={`w-3 h-3 rounded-full border-2 border-white ${pumpOn ? 'bg-white' : 'bg-blue-300'}`}
-                      style={pumpOn ? { animation: 'pulse 0.8s infinite' } : undefined}
+                    <span className={`w-3 h-3 rounded-full border-2 border-white ${isPumpOn ? 'bg-white' : 'bg-blue-300'}`}
+                      style={isPumpOn ? { animation: 'pulse 0.8s infinite' } : undefined}
                     />
-                    {pumpOn ? '⏹ Desligar Bomba' : '▶ Ligar Bomba'}
+                    {isPumpOn ? '⏹ Desligar Bomba' : '▶ Ligar Bomba'}
                   </button>
 
                   {/* Status */}
                   <div className={`mt-2 flex items-center justify-center gap-2 text-xs font-medium rounded-lg py-1.5 ${
-                    pumpOn ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-400'
+                    isPumpOn ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-400'
                   }`}>
-                    <span className={`w-2 h-2 rounded-full ${pumpOn ? 'bg-green-500' : 'bg-slate-300'}`}
-                      style={pumpOn ? { animation: 'pulse 1s infinite' } : undefined}
+                    <span className={`w-2 h-2 rounded-full ${isPumpOn ? 'bg-green-500' : 'bg-slate-300'}`}
+                      style={isPumpOn ? { animation: 'pulse 1s infinite' } : undefined}
                     />
-                    {pumpOn ? 'Bomba em operação — circulando produto' : 'Bomba desligada'}
+                    {isPumpOn ? 'Bomba em operação — circulando produto' : 'Bomba desligada'}
                   </div>
                 </div>
               )}
@@ -537,7 +615,7 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
                     <td className="py-2.5 font-bold text-slate-700">
                       <div className="flex items-center gap-1.5">
                         {tank.id}
-                        {tank.id === 'T4' && (
+                        {(tank.id === 'T4' || tank.id === 'T5') && (
                           <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold">BOMBA</span>
                         )}
                       </div>
@@ -589,20 +667,35 @@ export const StorageTanks: React.FC<StorageTanksProps> = ({
         </div>
       </div>
 
-      {/* Global pump banner */}
-      {pumpOn && (
-        <div className="mt-4 flex items-center gap-3 bg-blue-600 text-white rounded-xl px-5 py-3 shadow-lg shadow-blue-200">
-          <span className="text-lg">⚙️</span>
-          <span className="font-bold text-sm">Bomba T4 em operação</span>
-          <span className="text-blue-200 text-xs ml-1">— Circulação de produto ativa</span>
-          <div className="ml-auto flex gap-1.5">
-            {[0, 0.2, 0.4].map((d, i) => (
-              <div key={i} className="w-2 h-2 bg-white rounded-full"
-                style={{ animation: `bounce 0.8s ${d}s infinite` }} />
-            ))}
+      {/* Global pump banners */}
+      <div className="space-y-3 mt-4">
+        {pumpOn && (
+          <div className="flex items-center gap-3 bg-blue-600 text-white rounded-xl px-5 py-3 shadow-lg shadow-blue-200 animate-fade-in">
+            <span className="text-lg">⚙️</span>
+            <span className="font-bold text-sm">Bomba T4 em operação</span>
+            <span className="text-blue-200 text-xs ml-1">— Circulação de produto ativa</span>
+            <div className="ml-auto flex gap-1.5">
+              {[0, 0.2, 0.4].map((d, i) => (
+                <div key={i} className="w-2 h-2 bg-white rounded-full"
+                  style={{ animation: `bounce 0.8s ${d}s infinite` }} />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {pumpOnT5 && (
+          <div className="flex items-center gap-3 bg-green-600 text-white rounded-xl px-5 py-3 shadow-lg shadow-green-200 animate-fade-in">
+            <span className="text-lg">⚙️</span>
+            <span className="font-bold text-sm">Bomba T5 em operação</span>
+            <span className="text-green-200 text-xs ml-1">— Circulação/Agitação de produto ativa</span>
+            <div className="ml-auto flex gap-1.5">
+              {[0, 0.2, 0.4].map((d, i) => (
+                <div key={i} className="w-2 h-2 bg-white rounded-full"
+                  style={{ animation: `bounce 0.8s ${d}s infinite` }} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Product modal */}
       {editingProduct && (

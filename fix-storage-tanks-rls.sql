@@ -54,7 +54,34 @@ INSERT INTO public.storage_tanks (id, volume, product, pump_on)
     ('T5', 0, '', false)
   ON CONFLICT (id) DO NOTHING;
 
--- 8. Confirmação
+-- 8. Confirmação dos tanques
 SELECT id, volume, product, pump_on, updated_at
   FROM public.storage_tanks
   ORDER BY id;
+
+-- ================================================================
+-- COLABORADOR: Insere Juan Rodrigues na tabela employees
+-- ================================================================
+
+-- Garante que a tabela employees existe
+CREATE TABLE IF NOT EXISTS public.employees (
+  id   TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL
+);
+
+-- Upsert de todos os colaboradores (inclui Juan Rodrigues)
+INSERT INTO public.employees (id, name, role)
+  VALUES
+    ('jv-01', 'João Victor',    'Operador de Produção'),
+    ('jc-02', 'José Carlos',    'Operador de Produção'),
+    ('vd-03', 'Vanderlei',      'Auxiliar de Produção'),
+    ('fp-04', 'Felipe',         'Auxiliar de Produção'),
+    ('ts-05', 'Tailson',        'Auxiliar de Produção'),
+    ('jr-06', 'Juan Rodrigues', 'Operador de Produção')
+  ON CONFLICT (id) DO UPDATE
+    SET name = EXCLUDED.name,
+        role = EXCLUDED.role;
+
+-- Confirmação dos colaboradores
+SELECT id, name, role FROM public.employees ORDER BY id;

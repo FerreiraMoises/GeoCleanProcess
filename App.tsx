@@ -38,13 +38,12 @@ const App: React.FC = () => {
   useEffect(() => {
     async function initData() {
       try {
-        // Funcionários
-        let emps = await fetchEmployees();
-        if (emps.length === 0) {
-          await seedEmployees(EMPLOYEES);
-          emps = EMPLOYEES;
-        }
-        setEmployees(emps);
+        // Funcionários — sempre sincroniza constants.ts → Supabase (upsert)
+        // Isso garante que novos colaboradores adicionados ao constants.ts
+        // sejam inseridos no banco automaticamente na próxima carga.
+        await seedEmployees(EMPLOYEES);
+        const emps = await fetchEmployees();
+        setEmployees(emps.length > 0 ? emps : EMPLOYEES);
 
         // Logs de produção
         let dbLogs = await fetchLogs();
@@ -84,12 +83,14 @@ const App: React.FC = () => {
             const volumes: Record<string, string> = {};
             const products: Record<string, string> = {};
             let pumpOn = false;
+            let pumpOnT5 = false;
             dbTanks.forEach(t => {
               volumes[t.id] = t.volume > 0 ? String(t.volume) : '';
               products[t.id] = t.product;
               if (t.id === 'T4') pumpOn = t.pumpOn;
+              if (t.id === 'T5') pumpOnT5 = t.pumpOn;
             });
-            setTanksState({ volumes, products, pumpOn });
+            setTanksState({ volumes, products, pumpOn, pumpOnT5 });
           }
         } catch (tankErr) {
           console.warn('[Tanques] Erro ao carregar — usando estado local.', tankErr);
@@ -137,12 +138,14 @@ const App: React.FC = () => {
           const volumes: Record<string, string> = {};
           const products: Record<string, string> = {};
           let pumpOn = false;
+          let pumpOnT5 = false;
           dbTanks.forEach(t => {
             volumes[t.id] = t.volume > 0 ? String(t.volume) : '';
             products[t.id] = t.product;
             if (t.id === 'T4') pumpOn = t.pumpOn;
+            if (t.id === 'T5') pumpOnT5 = t.pumpOn;
           });
-          setTanksState({ volumes, products, pumpOn });
+          setTanksState({ volumes, products, pumpOn, pumpOnT5 });
         }
       } catch (e) {
         console.warn('[Tanques] Erro na sincronização periódica:', e);
@@ -252,33 +255,53 @@ const App: React.FC = () => {
     if (volumeSaveTimer.current) clearTimeout(volumeSaveTimer.current);
     volumeSaveTimer.current = setTimeout(() => {
       volumeSaveTimer.current = null;
-      const { products, pumpOn } = tanksStateRef.current;
-      changedIds.forEach(id => saveTankNow(id, newVolumes, products, pumpOn));
+      const { products, pumpOn, pumpOnT5 } = tanksStateRef.current;
+      changedIds.forEach(id => {
+        let pOn = false;
+        if (id === 'T4') pOn = pumpOn;
+        if (id === 'T5') pOn = pumpOnT5;
+        saveTankNow(id, newVolumes, products, pOn);
+      });
     }, 800);
   }, [saveTankNow]);
 
   /** Atualiza produtos no state e persiste imediatamente no Supabase. */
   const handleProductsChange = useCallback((newProducts: Record<string, string>) => {
-    const { volumes, pumpOn, products: prevProducts } = tanksStateRef.current;
+    const { volumes, pumpOn, pumpOnT5, products: prevProducts } = tanksStateRef.current;
     const changedIds = Object.keys(newProducts).filter(id => newProducts[id] !== prevProducts[id]);
     setTanksState(prev => ({ ...prev, products: newProducts }));
-    changedIds.forEach(id => saveTankNow(id, volumes, newProducts, pumpOn));
+    changedIds.forEach(id => {
+      let pOn = false;
+      if (id === 'T4') pOn = pumpOn;
+      if (id === 'T5') pOn = pumpOnT5;
+      saveTankNow(id, volumes, newProducts, pOn);
+    });
   }, [saveTankNow]);
 
-  /** Atualiza o estado da bomba T4 e persiste imediatamente no Supabase. */
-  const handlePumpChange = useCallback((newPumpOn: boolean) => {
+  /** Atualiza o estado da bomba (T4 ou T5) e persiste imediatamente no Supabase. */
+  const handlePumpChange = useCallback((tankId: string, newPumpOn: boolean) => {
     const { volumes, products } = tanksStateRef.current;
-    setTanksState(prev => ({ ...prev, pumpOn: newPumpOn }));
-    saveTankNow('T4', volumes, products, newPumpOn);
+    setTanksState(prev => {
+      if (tankId === 'T4') {
+        return { ...prev, pumpOn: newPumpOn };
+      } else if (tankId === 'T5') {
+        return { ...prev, pumpOnT5: newPumpOn };
+      }
+      return prev;
+    });
+    saveTankNow(tankId, volumes, products, newPumpOn);
   }, [saveTankNow]);
 
   /** Salva todos os 5 tanques imediatamente (chamado pelo botão Salvar Dados). */
   const handleSaveAllTanks = useCallback(async () => {
-    const { volumes, products, pumpOn } = tanksState;
+    const { volumes, products, pumpOn, pumpOnT5 } = tanksState;
     await Promise.all(
-      ['T1', 'T2', 'T3', 'T4', 'T5'].map(id =>
-        saveTankNow(id, volumes, products, id === 'T4' ? pumpOn : false)
-      )
+      ['T1', 'T2', 'T3', 'T4', 'T5'].map(id => {
+        let pOn = false;
+        if (id === 'T4') pOn = pumpOn;
+        if (id === 'T5') pOn = pumpOnT5;
+        return saveTankNow(id, volumes, products, pOn);
+      })
     );
     console.log('[Tanques] Todos os tanques salvos via botão.');
   }, [saveTankNow, tanksState]);
@@ -321,6 +344,7 @@ const App: React.FC = () => {
             volumes={tanksState.volumes}
             products={tanksState.products}
             pumpOn={tanksState.pumpOn}
+            pumpOnT5={tanksState.pumpOnT5}
             onVolumesChange={handleVolumesChange}
             onProductsChange={handleProductsChange}
             onPumpChange={handlePumpChange}
