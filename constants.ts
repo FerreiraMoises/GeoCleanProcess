@@ -1,7 +1,6 @@
 import { Employee, ProductType, ProcessStatus, ReactorState, ReactorId } from './types';
 
 export const EMPLOYEES: Employee[] = [
-  { id: 'jv-01', name: 'João Victor', role: 'Operador de Produção' },
   { id: 'vd-03', name: 'Vanderlei', role: 'Auxiliar de Produção' },
   { id: 'fp-04', name: 'Felipe', role: 'Auxiliar de Produção' },
   { id: 'ts-05', name: 'Tailson', role: 'Auxiliar de Produção' },
@@ -73,9 +72,9 @@ export const MOCK_LOGS = [
 ];
 
 export const MOCK_TASKS = [
-  { id: 't1', title: 'Mistura Inicial Cleanner', description: 'Realizar mistura base conforme fórmula', assignedTo: 'jv-01', product: 'Cleanner Top' as ProductType, status: 'Em Andamento' as ProcessStatus, deadline: '2023-10-27T10:00' },
+  { id: 't1', title: 'Mistura Inicial Cleanner', description: 'Realizar mistura base conforme fórmula', assignedTo: 'jr-06', product: 'Cleanner Top' as ProductType, status: 'Em Andamento' as ProcessStatus, deadline: '2023-10-27T10:00' },
   { id: 't2', title: 'Ensacamento Geo', description: 'Operar linha de ensacamento 50kg', assignedTo: 'vd-03', product: 'Geo Mangânes' as ProductType, status: 'Pendente' as ProcessStatus, deadline: '2023-10-27T14:00' },
-  { id: 't3', title: 'Controle de Qualidade Potence', description: 'Coletar amostras do lote 402', assignedTo: 'jv-01', product: 'Potence 11' as ProductType, status: 'Controle de Qualidade' as ProcessStatus, deadline: '2023-10-27T11:00' },
+  { id: 't3', title: 'Controle de Qualidade Potence', description: 'Coletar amostras do lote 402', assignedTo: 'jr-06', product: 'Potence 11' as ProductType, status: 'Controle de Qualidade' as ProcessStatus, deadline: '2023-10-27T11:00' },
 ];
 
 export const MOCK_REACTORS: ReactorState[] = [
