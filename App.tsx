@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './components/Dashboard';
+import { IndustrialDashboard } from './components/IndustrialDashboard';
 import { ProductionControl } from './components/ProductionControl';
 import { ManufacturingRoadmap } from './components/ManufacturingRoadmap';
 import { ReactorControl } from './components/ReactorControl';
@@ -324,7 +324,15 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard logs={logs} tasks={tasks} employees={employees} />;
+        return (
+          <IndustrialDashboard
+            logs={logs}
+            tasks={tasks}
+            employees={employees}
+            reactors={reactors}
+            tanksState={tanksState}
+          />
+        );
       case 'production':
         return <ProductionControl logs={logs} onAddLog={handleAddLog} />;
       case 'roadmap':
@@ -352,7 +360,15 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <Dashboard logs={logs} tasks={tasks} employees={employees} />;
+        return (
+          <IndustrialDashboard
+            logs={logs}
+            tasks={tasks}
+            employees={employees}
+            reactors={reactors}
+            tanksState={tanksState}
+          />
+        );
     }
   };
 
