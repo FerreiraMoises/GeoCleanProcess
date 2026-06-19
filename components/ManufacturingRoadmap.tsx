@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { Employee, Task, ProductType, ProcessStatus } from '../types';
 import { EMPLOYEES, PRODUCTS, STATUS_OPTIONS } from '../constants';
 import { generateTaskDescription } from '../services/geminiService';
-import { User, Calendar, Briefcase, Plus, Sparkles, ClipboardList } from 'lucide-react';
+import { User, Calendar, Briefcase, Plus, Sparkles, ClipboardList, Trash2, AlertTriangle, X } from 'lucide-react';
 
 interface RoadmapProps {
   employees: Employee[];
   tasks: Task[];
   onAddTask: (task: Task) => void;
   onUpdateStatus: (taskId: string, status: ProcessStatus) => void;
+  onDeleteTask: (taskId: string) => void;
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; border: string }> = {
@@ -20,7 +21,75 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; border: string }>
   'Colaborador de Férias':  { bg: 'bg-amber-500/15',   text: 'text-amber-400',  border: 'border-amber-500/30' },
 };
 
-export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks, onAddTask, onUpdateStatus }) => {
+/* ── Modal de Confirmação de Delete ── */
+interface DeleteModalProps {
+  task: Task;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const DeleteConfirmModal: React.FC<DeleteModalProps> = ({ task, onConfirm, onCancel }) => (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}
+  >
+    <div className="bg-slate-900 border border-red-500/40 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white">Deletar Produção</h2>
+            <p className="text-xs text-slate-500">Esta ação não pode ser desfeita</p>
+          </div>
+        </div>
+        <button
+          onClick={onCancel}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="p-6 space-y-5">
+        <p className="text-slate-300 text-sm leading-relaxed">
+          Você está prestes a deletar permanentemente a produção:
+        </p>
+
+        {/* Task preview */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-1.5">
+          <p className="font-bold text-white text-sm">{task.title}</p>
+          <div className="flex items-center gap-3 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1"><Briefcase size={10} /> {task.product}</span>
+          </div>
+          {task.description && (
+            <p className="text-xs text-slate-500 line-clamp-2">{task.description}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-slate-700 text-sm text-slate-400 font-semibold hover:bg-slate-800 hover:text-white transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-red-900/40"
+          >
+            <Trash2 size={14} />
+            Deletar Produção
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks, onAddTask, onUpdateStatus, onDeleteTask }) => {
   const [newTask, setNewTask] = useState<Partial<Task>>({
     assignedTo: EMPLOYEES[0].id,
     product: PRODUCTS[0],
@@ -28,6 +97,7 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
     deadline: new Date().toISOString().slice(0, 16)
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
 
   const handleGenerateDescription = async () => {
     if (!newTask.product || !newTask.title) return;
@@ -53,6 +123,13 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
     }
   };
 
+  const handleConfirmDelete = () => {
+    if (deletingTask) {
+      onDeleteTask(deletingTask.id);
+      setDeletingTask(null);
+    }
+  };
+
   return (
     <div className="p-6 min-h-screen bg-slate-950">
 
@@ -63,7 +140,7 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
             <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
               <ClipboardList size={16} className="text-blue-400" />
             </div>
-            <h2 className="text-2xl font-black text-white tracking-tight">Roteiro de Fabricação</h2>
+            <h2 className="text-2xl font-black text-white tracking-tight">Roteiro de Produção</h2>
           </div>
           <p className="text-slate-500 text-sm pl-11">Distribuição de tarefas por colaborador</p>
         </div>
@@ -223,16 +300,27 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
                         >
                           <div className="flex justify-between items-start gap-3 mb-2">
                             <h5 className="font-bold text-white text-sm flex-1">{task.title}</h5>
-                            <select
-                              value={task.status}
-                              onChange={(e) => onUpdateStatus(task.id, e.target.value as ProcessStatus)}
-                              className={`text-[10px] font-bold rounded-full px-3 py-1.5 border-0 cursor-pointer outline-none flex-shrink-0 ${s.bg} ${s.text}`}
-                              style={{ WebkitAppearance: 'none' }}
-                            >
-                              {STATUS_OPTIONS.map(opt => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <select
+                                value={task.status}
+                                onChange={(e) => onUpdateStatus(task.id, e.target.value as ProcessStatus)}
+                                className={`text-[10px] font-bold rounded-full px-3 py-1.5 border-0 cursor-pointer outline-none ${s.bg} ${s.text}`}
+                                style={{ WebkitAppearance: 'none' }}
+                              >
+                                {STATUS_OPTIONS.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                              {/* ── BOTÃO DELETAR PRODUÇÃO ── */}
+                              <button
+                                onClick={() => setDeletingTask(task)}
+                                title="Deletar Produção"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/30 hover:text-red-300 transition-all duration-200 text-[10px] font-bold uppercase tracking-wider"
+                              >
+                                <Trash2 size={11} />
+                                Deletar Produção
+                              </button>
+                            </div>
                           </div>
                           {task.description && (
                             <p className="text-xs text-slate-400 mb-3 leading-relaxed">{task.description}</p>
@@ -256,6 +344,15 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
         </div>
 
       </div>
+
+      {/* ── Modal de confirmação de delete ── */}
+      {deletingTask && (
+        <DeleteConfirmModal
+          task={deletingTask}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeletingTask(null)}
+        />
+      )}
     </div>
   );
 };

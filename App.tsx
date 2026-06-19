@@ -10,7 +10,7 @@ import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao
 import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
   addLog, addTask, updateTaskStatus, updateReactor, addObservation, deleteObservation,
-  seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks,
+  seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks, deleteTask,
   fetchTanks, updateTank, seedTanks,
 } from "./dbService";
 
@@ -212,6 +212,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      setTasks(prev => prev.filter(t => t.id !== taskId));
+    } catch (err) {
+      console.error('Erro ao deletar tarefa:', err);
+    }
+  };
+
   // ─── Handlers dos Tanques (fora do renderContent para estabilidade) ─────────
 
   /**
@@ -342,6 +351,7 @@ const App: React.FC = () => {
             tasks={tasks}
             onAddTask={handleAddTask}
             onUpdateStatus={handleUpdateTaskStatus}
+            onDeleteTask={handleDeleteTask}
           />
         );
       case 'reactors':

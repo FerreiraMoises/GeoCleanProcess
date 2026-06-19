@@ -119,6 +119,11 @@ export async function seedTasks(tasks: Task[]): Promise<void> {
     if (error) throw error;
 }
 
+export async function deleteTask(taskId: string): Promise<void> {
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+    if (error) throw error;
+}
+
 export async function deleteCompletedTasks(): Promise<string[]> {
     // Busca IDs das tarefas concluídas antes de deletar
     const { data: completed, error: fetchErr } = await supabase
