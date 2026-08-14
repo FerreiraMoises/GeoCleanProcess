@@ -5,7 +5,9 @@ export const EMPLOYEES: Employee[] = [
   { id: 'fp-04', name: 'Felipe', role: 'Auxiliar de Produção' },
   { id: 'ts-05', name: 'Tailson', role: 'Auxiliar de Produção' },
   { id: 'jr-06', name: 'Juan Rodrigues', role: 'Operador de Produção' },
-  { id: 'fm-07', name: 'Firmino', role: 'Auxiliar de Produção' },
+  // Firmino (fm-07) removido — substituído por Jorge e Diego
+  { id: 'jg-08', name: 'Jorge', role: 'Auxiliar de Produção' },
+  { id: 'dg-09', name: 'Diego', role: 'Auxiliar de Produção' },
 ];
 
 export const PRODUCTS: ProductType[] = [

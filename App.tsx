@@ -5,14 +5,27 @@ import { ProductionControl } from './components/ProductionControl';
 import { ManufacturingRoadmap } from './components/ManufacturingRoadmap';
 import { ReactorControl } from './components/ReactorControl';
 import { StorageTanks, INITIAL_TANKS_STATE, StorageTanksState } from './components/StorageTanks';
+import { MyActivityQueue } from './components/MyActivityQueue';
+import { QueueAdminPanel } from './components/QueueAdminPanel';
+import { KanbanBoard } from './components/KanbanBoard';
+import { TVMode } from './components/TVMode';
+import { RulesEngine } from './components/RulesEngine';
 import { EMPLOYEES, MOCK_LOGS, MOCK_TASKS, MOCK_REACTORS } from './constants';
-import { ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
+import {
+  ProductionLog, Task, ProcessStatus, ReactorState, ReactorId,
+  Observacao, ActivityQueueItem, QueueRule, LoadBalanceSuggestion,
+} from './types';
 import {
   fetchEmployees, fetchLogs, fetchTasks, fetchReactors, fetchObservations,
   addLog, addTask, updateTaskStatus, updateReactor, addObservation, deleteObservation,
   seedEmployees, seedLogs, seedTasks, seedReactors, deleteCompletedTasks, deleteTask,
   fetchTanks, updateTank, seedTanks,
-} from "./dbService";
+  fetchAllQueue, fetchRules, fetchLoadSuggestions,
+  deleteLog, updateTaskSmsStatus,
+} from './dbService';
+import { subscribeToQueue, subscribeToRules, subscribeToSuggestions } from './services/realtimeService';
+import { taskToQueueItem } from './services/queueService';
+import { sendTaskNotificationSms } from './services/smsService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -26,6 +39,21 @@ const App: React.FC = () => {
 
   // Tank state — persists across tab switches
   const [tanksState, setTanksState] = useState<StorageTanksState>(INITIAL_TANKS_STATE);
+
+  // ─── Fila Inteligente ──────────────────────────────────────────────────────
+  const [activityQueue, setActivityQueue] = useState<ActivityQueueItem[]>([]);
+  const [queueRules, setQueueRules] = useState<QueueRule[]>([]);
+  const [loadSuggestions, setLoadSuggestions] = useState<LoadBalanceSuggestion[]>([]);
+
+  // Identidade do usuário ativo (selecionado na sidebar, salvo em localStorage)
+  const [currentUserId, setCurrentUserId] = useState<string>(() => {
+    return localStorage.getItem('geoclean_current_user') ?? '';
+  });
+
+  const handleSelectUser = useCallback((id: string) => {
+    setCurrentUserId(id);
+    localStorage.setItem('geoclean_current_user', id);
+  }, []);
 
   // Ref para debounce do save de volumes (evita salvar a cada tecla digitada)
   const volumeSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,6 +123,20 @@ const App: React.FC = () => {
         } catch (tankErr) {
           console.warn('[Tanques] Erro ao carregar — usando estado local.', tankErr);
         }
+
+        // ── Módulo Fila Inteligente ─────────────────────────────────────────
+        try {
+          const [dbQueue, dbRules, dbSugs] = await Promise.all([
+            fetchAllQueue(),
+            fetchRules(),
+            fetchLoadSuggestions(),
+          ]);
+          setActivityQueue(dbQueue);
+          setQueueRules(dbRules);
+          setLoadSuggestions(dbSugs);
+        } catch (qErr) {
+          console.warn('[Fila] Tabelas ainda não existem. Execute setup-queue-tables.mjs primeiro.', qErr);
+        }
       } catch (err) {
         console.error('Erro ao carregar dados do Supabase:', err);
         // Fallback para dados locais
@@ -106,6 +148,30 @@ const App: React.FC = () => {
       }
     }
     initData();
+  }, []);
+
+  // ─── Supabase Realtime — Fila Inteligente ─────────────────────────────────
+  useEffect(() => {
+    const unsubQueue = subscribeToQueue(
+      (item) => setActivityQueue(prev => {
+        if (prev.find(i => i.id === item.id)) return prev.map(i => i.id === item.id ? item : i);
+        return [...prev, item];
+      }),
+      (item) => setActivityQueue(prev => prev.map(i => i.id === item.id ? item : i)),
+      (id) => setActivityQueue(prev => prev.filter(i => i.id !== id)),
+    );
+    const unsubRules = subscribeToRules(() => {
+      fetchRules().then(setQueueRules).catch(() => {});
+    });
+    const unsubSugs = subscribeToSuggestions(() => {
+      fetchLoadSuggestions().then(setLoadSuggestions).catch(() => {});
+    });
+
+    return () => {
+      unsubQueue();
+      unsubRules();
+      unsubSugs();
+    };
   }, []);
 
   // ─── Limpeza automática de tarefas concluídas a cada 12 horas ─────────────
@@ -167,10 +233,61 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddTask = async (newTask: Task) => {
+  const handleAddTask = async (newTask: Task, employeePhone?: string) => {
     try {
       await addTask(newTask);
       setTasks(prev => [newTask, ...prev]);
+
+      // ── Envio automático de SMS ao criar tarefa ────────────────────────────
+      // Dispara em background — não bloqueia a UX caso o SMS falhe
+      (async () => {
+        try {
+          const assignedEmployee = employees.find(e => e.id === newTask.assignedTo);
+          if (!assignedEmployee) return;
+
+          // Número de telefone: usa o parâmetro recebido ou busca no perfil do colaborador
+          const phone = employeePhone ?? (assignedEmployee as any).phone ?? '';
+
+          if (!phone) {
+            console.warn(`[SMS] Colaborador ${assignedEmployee.name} não possui telefone cadastrado.`);
+            // Marca como 'pending' para revisão posterior
+            await updateTaskSmsStatus(newTask.id, 'pending').catch(() => {});
+            setTasks(prev => prev.map(t =>
+              t.id === newTask.id ? { ...t, smsStatus: 'pending' } : t
+            ));
+            return;
+          }
+
+          // Atualiza status para 'sent' antes de tentar enviar
+          await updateTaskSmsStatus(newTask.id, 'sent').catch(() => {});
+          setTasks(prev => prev.map(t =>
+            t.id === newTask.id ? { ...t, smsStatus: 'sent' } : t
+          ));
+
+          const result = await sendTaskNotificationSms(newTask, assignedEmployee, phone);
+
+          if (!result.success) {
+            // SMS falhou — reverte para 'pending'
+            await updateTaskSmsStatus(newTask.id, 'pending').catch(() => {});
+            setTasks(prev => prev.map(t =>
+              t.id === newTask.id ? { ...t, smsStatus: 'pending' } : t
+            ));
+          }
+        } catch (smsErr) {
+          console.warn('[SMS] Erro inesperado ao enviar notificação:', smsErr);
+        }
+      })();
+
+      // ── Ao criar tarefa, adiciona automaticamente à fila do colaborador ──
+      try {
+        const queueItem = taskToQueueItem(newTask, 'media', activityQueue.filter(i => i.assignedTo === newTask.assignedTo).length);
+        const { fetchAllQueue: _f, ...rest } = await import('./dbService');
+        const { addToQueue } = await import('./dbService');
+        await addToQueue(queueItem);
+        setActivityQueue(prev => [...prev, { ...queueItem, createdAt: new Date().toISOString() }]);
+      } catch (qErr) {
+        console.warn('[Fila] Não foi possível adicionar à fila automaticamente:', qErr);
+      }
     } catch (err) {
       console.error('Erro ao salvar tarefa:', err);
     }
@@ -218,6 +335,21 @@ const App: React.FC = () => {
       setTasks(prev => prev.filter(t => t.id !== taskId));
     } catch (err) {
       console.error('Erro ao deletar tarefa:', err);
+    }
+  };
+
+  /**
+   * Remove um registro de produção do Supabase e atualiza o estado local.
+   * Chamado pelo ProductionControl via prop onDeleteLog.
+   */
+  const handleDeleteLog = async (logId: string) => {
+    try {
+      await deleteLog(logId);
+      setLogs(prev => prev.filter(l => l.id !== logId));
+    } catch (err) {
+      console.error('Erro ao deletar registro de produção:', err);
+      // Relança o erro para que o componente filho possa exibir a mensagem de erro
+      throw err;
     }
   };
 
@@ -328,6 +460,26 @@ const App: React.FC = () => {
     );
   }
 
+  // ─── Modo TV — sem sidebar ─────────────────────────────────────────────────
+  if (activeTab === 'tv') {
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className="fixed top-4 left-4 z-50 text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-600 px-3 py-1.5 rounded-lg backdrop-blur-sm transition-all"
+        >
+          ← Sair do Modo TV
+        </button>
+        <TVMode
+          queue={activityQueue}
+          employees={employees}
+          reactors={reactors}
+          logs={logs}
+        />
+      </div>
+    );
+  }
+
   // ─── Renderização das abas ─────────────────────────────────────────────────
 
   const renderContent = () => {
@@ -343,7 +495,7 @@ const App: React.FC = () => {
           />
         );
       case 'production':
-        return <ProductionControl logs={logs} onAddLog={handleAddLog} />;
+        return <ProductionControl logs={logs} onAddLog={handleAddLog} onDeleteLog={handleDeleteLog} />;
       case 'roadmap':
         return (
           <ManufacturingRoadmap
@@ -369,6 +521,42 @@ const App: React.FC = () => {
             onSaveAll={handleSaveAllTanks}
           />
         );
+      // ── Novos tabs ────────────────────────────────────────────────────────
+      case 'my-queue':
+        return (
+          <MyActivityQueue
+            queue={activityQueue}
+            employees={employees}
+            currentUserId={currentUserId}
+            onQueueChange={setActivityQueue}
+            onSelectUser={handleSelectUser}
+          />
+        );
+      case 'queue-admin':
+        return (
+          <QueueAdminPanel
+            queue={activityQueue}
+            employees={employees}
+            suggestions={loadSuggestions}
+            onQueueChange={setActivityQueue}
+            onSuggestionsChange={setLoadSuggestions}
+          />
+        );
+      case 'kanban':
+        return (
+          <KanbanBoard
+            queue={activityQueue}
+            employees={employees}
+            onQueueChange={setActivityQueue}
+          />
+        );
+      case 'rules':
+        return (
+          <RulesEngine
+            rules={queueRules}
+            onRulesChange={setQueueRules}
+          />
+        );
       default:
         return (
           <IndustrialDashboard
@@ -384,7 +572,16 @@ const App: React.FC = () => {
 
   return (
     <div className="flex font-sans text-slate-900 bg-slate-50 min-h-screen">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} observacoes={observacoes} onAddObservacao={handleAddObservacao} onDeleteObservacao={handleDeleteObservacao} />
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        observacoes={observacoes}
+        onAddObservacao={handleAddObservacao}
+        onDeleteObservacao={handleDeleteObservacao}
+        currentUserId={currentUserId}
+        employees={employees}
+        onSelectUser={handleSelectUser}
+      />
       <main className="flex-1 ml-64">
         <div className="max-w-7xl mx-auto">
           {renderContent()}

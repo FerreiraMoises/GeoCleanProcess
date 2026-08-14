@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Employee, Task, ProductType, ProcessStatus } from '../types';
+import { Employee, Task, ProductType, ProcessStatus, SmsConfirmationStatus } from '../types';
 import { EMPLOYEES, PRODUCTS, STATUS_OPTIONS } from '../constants';
 import { generateTaskDescription } from '../services/geminiService';
-import { User, Calendar, Briefcase, Plus, Sparkles, ClipboardList, Trash2, AlertTriangle, X } from 'lucide-react';
+import { User, Calendar, Briefcase, Plus, Sparkles, ClipboardList, Trash2, AlertTriangle, X, MessageSquare, CheckCircle2, Clock, Bell } from 'lucide-react';
 
 interface RoadmapProps {
   employees: Employee[];
   tasks: Task[];
-  onAddTask: (task: Task) => void;
+  /** onAddTask recebe a tarefa e opcionalmente o telefone do colaborador para envio de SMS */
+  onAddTask: (task: Task, phone?: string) => void;
   onUpdateStatus: (taskId: string, status: ProcessStatus) => void;
   onDeleteTask: (taskId: string) => void;
 }
@@ -89,6 +90,34 @@ const DeleteConfirmModal: React.FC<DeleteModalProps> = ({ task, onConfirm, onCan
   </div>
 );
 
+// ─── Badge de Status SMS ──────────────────────────────────────────────────────
+
+const SMS_STATUS_CONFIG: Record<SmsConfirmationStatus, {
+  icon: React.ReactNode;
+  label: string;
+  bg: string;
+  text: string;
+  border: string;
+}> = {
+  pending:     { icon: <Clock size={10} />,          label: 'SMS Pendente',     bg: 'bg-slate-700/50',   text: 'text-slate-400',  border: 'border-slate-600/50' },
+  sent:        { icon: <MessageSquare size={10} />,   label: 'SMS Enviado',      bg: 'bg-blue-500/15',    text: 'text-blue-400',   border: 'border-blue-500/30' },
+  confirmed:   { icon: <CheckCircle2 size={10} />,    label: 'Confirmado ✓',     bg: 'bg-green-500/15',   text: 'text-green-400',  border: 'border-green-500/30' },
+  not_started: { icon: <Bell size={10} />,            label: 'Não Iniciou!',     bg: 'bg-red-500/15',     text: 'text-red-400',    border: 'border-red-500/40' },
+};
+
+const SmsBadge: React.FC<{ status: SmsConfirmationStatus; confirmedAt?: string }> = ({ status, confirmedAt }) => {
+  const cfg = SMS_STATUS_CONFIG[status];
+  return (
+    <span
+      title={confirmedAt ? `Confirmado em: ${new Date(confirmedAt).toLocaleString('pt-BR')}` : cfg.label}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${cfg.bg} ${cfg.text} ${cfg.border}`}
+    >
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+};
+
 export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks, onAddTask, onUpdateStatus, onDeleteTask }) => {
   const [newTask, setNewTask] = useState<Partial<Task>>({
     assignedTo: EMPLOYEES[0].id,
@@ -96,6 +125,7 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
     status: 'Pendente',
     deadline: new Date().toISOString().slice(0, 16)
   });
+  const [employeePhone, setEmployeePhone] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
 
@@ -110,16 +140,20 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTask.title && newTask.assignedTo && newTask.product) {
-      onAddTask({
+      const task: Task = {
         id: Date.now().toString(),
         title: newTask.title,
         description: newTask.description || '',
         assignedTo: newTask.assignedTo,
         product: newTask.product as ProductType,
         status: (newTask.status as ProcessStatus) || 'Pendente',
-        deadline: newTask.deadline || ''
-      });
+        deadline: newTask.deadline || '',
+        smsStatus: 'pending',
+      };
+      // Passa o telefone do colaborador para que App.tsx dispare o SMS
+      onAddTask(task, employeePhone.trim() || undefined);
       setNewTask(prev => ({ ...prev, title: '', description: '' }));
+      setEmployeePhone('');
     }
   };
 
@@ -239,6 +273,24 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
                 />
               </div>
 
+              {/* Campo de telefone — usado para envio do SMS de confirmação */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <MessageSquare size={10} className="text-blue-400" />
+                    Telefone do Colaborador (para SMS)
+                  </span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="+5511999999999"
+                  className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition placeholder-slate-600"
+                  value={employeePhone}
+                  onChange={e => setEmployeePhone(e.target.value)}
+                />
+                <p className="text-[10px] text-slate-600 mt-1">Deixe em branco para não enviar SMS agora.</p>
+              </div>
+
               <button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all duration-200 shadow-lg shadow-blue-900/30"
@@ -324,6 +376,21 @@ export const ManufacturingRoadmap: React.FC<RoadmapProps> = ({ employees, tasks,
                           </div>
                           {task.description && (
                             <p className="text-xs text-slate-400 mb-3 leading-relaxed">{task.description}</p>
+                          )}
+                          {/* ── Badge de Status SMS ── */}
+                          {task.smsStatus && (
+                            <div className="mb-2">
+                              <SmsBadge status={task.smsStatus} confirmedAt={task.smsConfirmedAt} />
+                            </div>
+                          )}
+                          {/* ── Notificação ao Gestor: colaborador não iniciou ── */}
+                          {task.smsStatus === 'not_started' && (
+                            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-2">
+                              <Bell size={12} className="text-red-400 flex-shrink-0" />
+                              <p className="text-[11px] text-red-300 font-semibold">
+                                Atenção: O colaborador não iniciou a atividade no prazo.
+                              </p>
+                            </div>
                           )}
                           <div className="flex items-center gap-4 text-[10px] text-slate-500">
                             <span className="flex items-center gap-1">

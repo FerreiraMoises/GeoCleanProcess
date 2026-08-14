@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
-import { Employee, ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao } from './types';
+import { Employee, ProductionLog, Task, ProcessStatus, ReactorState, ReactorId, Observacao,
+         ActivityQueueItem, Priority, QueueStatus, QueueRule, LoadBalanceSuggestion } from './types';
 
 // ─── Tipo local para tanques ───────────────────────────────────────────────────
 export interface TankRow {
@@ -52,6 +53,15 @@ export async function addLog(log: ProductionLog): Promise<void> {
     if (error) throw error;
 }
 
+/**
+ * Remove um registro de produção pelo ID.
+ * Chamado pelo handler handleDeleteLog em App.tsx.
+ */
+export async function deleteLog(logId: string): Promise<void> {
+    const { error } = await supabase.from('production_logs').delete().eq('id', logId);
+    if (error) throw error;
+}
+
 export async function seedLogs(logs: ProductionLog[]): Promise<void> {
     const rows = logs.map(log => ({
         id: log.id,
@@ -81,6 +91,10 @@ export async function fetchTasks(): Promise<Task[]> {
         product: row.product,
         status: row.status as ProcessStatus,
         deadline: row.deadline,
+        // Campos de confirmação SMS
+        smsStatus:         row.sms_status ?? undefined,
+        smsConfirmedAt:    row.sms_confirmed_at ?? undefined,
+        smsConfirmedPhone: row.sms_confirmed_phone ?? undefined,
     })) as Task[];
 }
 
@@ -102,6 +116,29 @@ export async function updateTaskStatus(taskId: string, status: ProcessStatus): P
         .from('tasks')
         .update({ status })
         .eq('id', taskId);
+    if (error) throw error;
+}
+
+/**
+ * Atualiza os campos de confirmação via SMS de uma tarefa.
+ * Chamado após o envio do SMS e após o webhook de confirmação.
+ *
+ * @param taskId       - ID da tarefa
+ * @param smsStatus    - Novo estado do SMS
+ * @param confirmedAt  - ISO timestamp da confirmação (opcional)
+ * @param confirmedPhone - Número utilizado na confirmação (opcional)
+ */
+export async function updateTaskSmsStatus(
+    taskId: string,
+    smsStatus: string,
+    confirmedAt?: string,
+    confirmedPhone?: string,
+): Promise<void> {
+    const updates: Record<string, unknown> = { sms_status: smsStatus };
+    if (confirmedAt)    updates.sms_confirmed_at    = confirmedAt;
+    if (confirmedPhone) updates.sms_confirmed_phone = confirmedPhone;
+
+    const { error } = await supabase.from('tasks').update(updates).eq('id', taskId);
     if (error) throw error;
 }
 
@@ -262,5 +299,232 @@ export async function updateTank(
             },
             { onConflict: 'id' },
         );
+    if (error) throw error;
+}
+
+// ─── ACTIVITY QUEUE ───────────────────────────────────────────────────────────
+
+function rowToQueueItem(row: any): ActivityQueueItem {
+    return {
+        id: row.id,
+        taskId: row.task_id ?? null,
+        assignedTo: row.assigned_to,
+        priority: row.priority as Priority,
+        position: row.position,
+        scheduledAt: row.scheduled_at ?? null,
+        startedAt: row.started_at ?? null,
+        completedAt: row.completed_at ?? null,
+        status: row.status as QueueStatus,
+        tankId: row.tank_id ?? null,
+        productionOrder: row.production_order ?? null,
+        formula: row.formula ?? null,
+        product: row.product ?? '',
+        title: row.title ?? '',
+        description: row.description ?? '',
+        estimatedMinutes: row.estimated_minutes ?? 60,
+        idleSince: row.idle_since ?? null,
+        notes: row.notes ?? '',
+        createdAt: row.created_at,
+    };
+}
+
+export async function fetchQueue(employeeId?: string): Promise<ActivityQueueItem[]> {
+    let query = supabase
+        .from('activity_queue')
+        .select('*')
+        .not('status', 'in', '("concluido","cancelado")')
+        .order('priority_order', { ascending: true, nullsFirst: false });
+
+    // Supabase não tem coluna calculada — ordenamos no cliente
+    let q2 = supabase
+        .from('activity_queue')
+        .select('*')
+        .not('status', 'in', '("concluido","cancelado")')
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true });
+
+    if (employeeId) q2 = q2.eq('assigned_to', employeeId);
+
+    const { data, error } = await q2;
+    if (error) throw error;
+    return (data as any[]).map(rowToQueueItem);
+}
+
+export async function fetchAllQueue(): Promise<ActivityQueueItem[]> {
+    const { data, error } = await supabase
+        .from('activity_queue')
+        .select('*')
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as any[]).map(rowToQueueItem);
+}
+
+export async function addToQueue(item: Omit<ActivityQueueItem, 'createdAt'>): Promise<void> {
+    const { error } = await supabase.from('activity_queue').insert({
+        id: item.id,
+        task_id: item.taskId,
+        assigned_to: item.assignedTo,
+        priority: item.priority,
+        position: item.position,
+        scheduled_at: item.scheduledAt,
+        started_at: item.startedAt,
+        completed_at: item.completedAt,
+        status: item.status,
+        tank_id: item.tankId,
+        production_order: item.productionOrder,
+        formula: item.formula,
+        product: item.product,
+        title: item.title,
+        description: item.description,
+        estimated_minutes: item.estimatedMinutes,
+        idle_since: item.idleSince,
+        notes: item.notes,
+    });
+    if (error) throw error;
+}
+
+export async function updateQueueItem(id: string, updates: Partial<ActivityQueueItem>): Promise<void> {
+    const dbUpdates: Record<string, any> = {};
+    if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+    if (updates.position !== undefined) dbUpdates.position = updates.position;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.startedAt !== undefined) dbUpdates.started_at = updates.startedAt;
+    if (updates.completedAt !== undefined) dbUpdates.completed_at = updates.completedAt;
+    if (updates.scheduledAt !== undefined) dbUpdates.scheduled_at = updates.scheduledAt;
+    if (updates.tankId !== undefined) dbUpdates.tank_id = updates.tankId;
+    if (updates.productionOrder !== undefined) dbUpdates.production_order = updates.productionOrder;
+    if (updates.formula !== undefined) dbUpdates.formula = updates.formula;
+    if (updates.product !== undefined) dbUpdates.product = updates.product;
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.estimatedMinutes !== undefined) dbUpdates.estimated_minutes = updates.estimatedMinutes;
+    if (updates.idleSince !== undefined) dbUpdates.idle_since = updates.idleSince;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.assignedTo !== undefined) dbUpdates.assigned_to = updates.assignedTo;
+
+    const { error } = await supabase.from('activity_queue').update(dbUpdates).eq('id', id);
+    if (error) throw error;
+}
+
+export async function removeFromQueue(id: string): Promise<void> {
+    const { error } = await supabase.from('activity_queue').delete().eq('id', id);
+    if (error) throw error;
+}
+
+/** Reordena a fila de um colaborador por prioridade e data de criação, atualizando o campo position */
+export async function reorderQueue(employeeId: string): Promise<ActivityQueueItem[]> {
+    const { data, error } = await supabase
+        .from('activity_queue')
+        .select('*')
+        .eq('assigned_to', employeeId)
+        .not('status', 'in', '("concluido","cancelado")')
+        .order('created_at', { ascending: true });
+    if (error) throw error;
+
+    const PRIORITY_ORDER: Record<string, number> = { critica: 1, alta: 2, media: 3, baixa: 4 };
+    const sorted = (data as any[])
+        .map(rowToQueueItem)
+        .sort((a, b) => {
+            const pa = PRIORITY_ORDER[a.priority] ?? 99;
+            const pb = PRIORITY_ORDER[b.priority] ?? 99;
+            if (pa !== pb) return pa - pb;
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
+
+    // Atualiza positions em batch
+    await Promise.all(
+        sorted.map((item, idx) =>
+            supabase.from('activity_queue').update({ position: idx }).eq('id', item.id)
+        )
+    );
+
+    return sorted.map((item, idx) => ({ ...item, position: idx }));
+}
+
+// ─── QUEUE RULES ──────────────────────────────────────────────────────────────
+
+function rowToRule(row: any): QueueRule {
+    return {
+        id: row.id,
+        name: row.name,
+        triggerEvent: row.trigger_event,
+        conditionData: row.condition_data ?? null,
+        action: row.action,
+        actionData: row.action_data ?? null,
+        active: row.active,
+        createdAt: row.created_at,
+    };
+}
+
+export async function fetchRules(): Promise<QueueRule[]> {
+    const { data, error } = await supabase
+        .from('queue_rules')
+        .select('*')
+        .order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data as any[]).map(rowToRule);
+}
+
+export async function saveRule(rule: QueueRule): Promise<void> {
+    const { error } = await supabase.from('queue_rules').upsert({
+        id: rule.id,
+        name: rule.name,
+        trigger_event: rule.triggerEvent,
+        condition_data: rule.conditionData,
+        action: rule.action,
+        action_data: rule.actionData,
+        active: rule.active,
+    }, { onConflict: 'id' });
+    if (error) throw error;
+}
+
+export async function deleteRule(id: string): Promise<void> {
+    const { error } = await supabase.from('queue_rules').delete().eq('id', id);
+    if (error) throw error;
+}
+
+export async function toggleRule(id: string, active: boolean): Promise<void> {
+    const { error } = await supabase.from('queue_rules').update({ active }).eq('id', id);
+    if (error) throw error;
+}
+
+// ─── LOAD BALANCE SUGGESTIONS ─────────────────────────────────────────────────
+
+export async function fetchLoadSuggestions(): Promise<LoadBalanceSuggestion[]> {
+    const { data, error } = await supabase
+        .from('load_balance_suggestions')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as any[]).map(row => ({
+        id: row.id,
+        availableEmployeeId: row.available_employee_id,
+        overloadedEmployeeId: row.overloaded_employee_id,
+        suggestedTaskId: row.suggested_task_id ?? null,
+        estimatedDelayMins: row.estimated_delay_mins ?? 0,
+        status: row.status,
+        createdAt: row.created_at,
+    })) as LoadBalanceSuggestion[];
+}
+
+export async function addLoadSuggestion(sug: Omit<LoadBalanceSuggestion, 'createdAt'>): Promise<void> {
+    const { error } = await supabase.from('load_balance_suggestions').insert({
+        id: sug.id,
+        available_employee_id: sug.availableEmployeeId,
+        overloaded_employee_id: sug.overloadedEmployeeId,
+        suggested_task_id: sug.suggestedTaskId,
+        estimated_delay_mins: sug.estimatedDelayMins,
+        status: sug.status,
+    });
+    if (error) throw error;
+}
+
+export async function updateSuggestionStatus(id: string, status: 'accepted' | 'rejected'): Promise<void> {
+    const { error } = await supabase
+        .from('load_balance_suggestions')
+        .update({ status })
+        .eq('id', id);
     if (error) throw error;
 }

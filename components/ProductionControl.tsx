@@ -1,13 +1,132 @@
 import React, { useState } from 'react';
 import { ProductionLog, ProductType } from '../types';
 import { PRODUCTS } from '../constants';
-import { PlusCircle, Save, Trash2, Factory, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Save, Trash2, Factory, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 
 interface ProductionControlProps {
   logs: ProductionLog[];
   onAddLog: (log: ProductionLog) => void;
-  onDeleteLog?: (logId: string) => void;
+  onDeleteLog?: (logId: string) => Promise<void>;
 }
+
+// ─── Toast de Feedback ────────────────────────────────────────────────────────
+
+type ToastType = 'success' | 'error';
+
+interface ToastData {
+  message: string;
+  type: ToastType;
+}
+
+const Toast: React.FC<{ toast: ToastData; onClose: () => void }> = ({ toast, onClose }) => (
+  <div
+    className={`fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl border transition-all duration-300 ${
+      toast.type === 'success'
+        ? 'bg-green-900/90 border-green-500/40 text-green-300'
+        : 'bg-red-900/90 border-red-500/40 text-red-300'
+    }`}
+  >
+    {toast.type === 'success'
+      ? <CheckCircle2 size={18} className="text-green-400 flex-shrink-0" />
+      : <AlertTriangle size={18} className="text-red-400 flex-shrink-0" />
+    }
+    <span className="text-sm font-semibold">{toast.message}</span>
+    <button
+      onClick={onClose}
+      className="ml-2 text-current opacity-60 hover:opacity-100 transition-opacity"
+    >
+      <X size={14} />
+    </button>
+  </div>
+);
+
+// ─── Modal de Confirmação de Exclusão ──────────────────────────────────────
+
+interface DeleteLogModalProps {
+  log: ProductionLog;
+  isDeleting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const DeleteLogModal: React.FC<DeleteLogModalProps> = ({ log, isDeleting, onConfirm, onCancel }) => (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    style={{ backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}
+    // Fecha ao clicar fora
+    onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+  >
+    <div className="bg-slate-900 border border-red-500/40 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-white">Excluir Produção</h2>
+            <p className="text-xs text-slate-500">Esta ação não pode ser desfeita</p>
+          </div>
+        </div>
+        <button
+          onClick={onCancel}
+          disabled={isDeleting}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors disabled:opacity-40"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="p-6 space-y-5">
+        <p className="text-slate-300 text-sm leading-relaxed">
+          Deseja realmente excluir este registro de produção?
+        </p>
+
+        {/* Preview do registro */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-1.5">
+          <p className="font-bold text-white text-sm">{log.product}</p>
+          <div className="flex items-center gap-3 text-[11px] text-slate-400">
+            <span>Data: {log.date}</span>
+            <span>•</span>
+            <span className="text-green-400 font-mono font-bold">{log.quantityM3.toLocaleString('pt-BR')} m³</span>
+            <span>•</span>
+            <span>{log.shift}</span>
+          </div>
+          {log.notes && (
+            <p className="text-xs text-slate-500 line-clamp-2">{log.notes}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="flex-1 py-2.5 rounded-xl border border-slate-700 text-sm text-slate-400 font-semibold hover:bg-slate-800 hover:text-white transition-colors disabled:opacity-40"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-red-800 text-white text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-red-900/40"
+          >
+            {isDeleting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Excluindo...
+              </>
+            ) : (
+              <>
+                <Trash2 size={14} />
+                Excluir
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 export const ProductionControl: React.FC<ProductionControlProps> = ({ logs, onAddLog, onDeleteLog }) => {
   const [formData, setFormData] = useState<Partial<ProductionLog>>({
@@ -16,7 +135,19 @@ export const ProductionControl: React.FC<ProductionControlProps> = ({ logs, onAd
     quantityM3: 0,
     notes: ''
   });
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // ── Estado do modal de exclusão ────────────────────────────────────────────
+  const [confirmDeleteLog, setConfirmDeleteLog] = useState<ProductionLog | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // ── Estado do toast de feedback ───────────────────────────────────────
+  const [toast, setToast] = useState<ToastData | null>(null);
+
+  /** Exibe um toast e o remove automaticamente após 4 segundos */
+  const showToast = (message: string, type: ToastType) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,14 +164,21 @@ export const ProductionControl: React.FC<ProductionControlProps> = ({ logs, onAd
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (confirmDeleteId === id) {
-      onDeleteLog?.(id);
-      setConfirmDeleteId(null);
-    } else {
-      setConfirmDeleteId(id);
-      // auto-cancel confirmation after 4s
-      setTimeout(() => setConfirmDeleteId(prev => prev === id ? null : prev), 4000);
+  /**
+   * Confirma a exclusão do registro após o usuário clicar em "Excluir" no modal.
+   * Exibe loading durante a operação e toast de sucesso ou erro ao finalizar.
+   */
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteLog || !onDeleteLog) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteLog(confirmDeleteLog.id);
+      setConfirmDeleteLog(null);
+      showToast('Produção excluída com sucesso.', 'success');
+    } catch {
+      showToast('Não foi possível excluir a produção.', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -175,7 +313,7 @@ export const ProductionControl: React.FC<ProductionControlProps> = ({ logs, onAd
                   {[...logs].reverse().map((log) => (
                     <tr
                       key={log.id}
-                      className={`border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors ${confirmDeleteId === log.id ? 'bg-red-950/30' : ''}`}
+                      className={`border-b border-slate-800/50 hover:bg-slate-800/40 transition-colors ${confirmDeleteLog?.id === log.id ? 'bg-red-950/30' : ''}`}
                     >
                       <td className="px-5 py-3 text-slate-400 font-mono text-xs whitespace-nowrap">{log.date}</td>
                       <td className="px-5 py-3 text-white font-medium text-sm">{log.product}</td>
@@ -190,34 +328,14 @@ export const ProductionControl: React.FC<ProductionControlProps> = ({ logs, onAd
                       </td>
                       {onDeleteLog && (
                         <td className="px-5 py-3 text-center">
-                          {confirmDeleteId === log.id ? (
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="text-[10px] text-red-400 font-bold flex items-center gap-1">
-                                <AlertTriangle size={10} /> Confirmar?
-                              </span>
-                              <button
-                                onClick={() => handleDelete(log.id)}
-                                className="bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
-                              >
-                                Sim
-                              </button>
-                              <button
-                                onClick={() => setConfirmDeleteId(null)}
-                                className="bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
-                              >
-                                Não
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => handleDelete(log.id)}
-                              title="Deletar Produção"
-                              className="flex items-center gap-1.5 mx-auto bg-red-900/30 hover:bg-red-600 border border-red-700/40 hover:border-red-500 text-red-400 hover:text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all duration-200"
-                            >
-                              <Trash2 size={11} />
-                              Deletar
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setConfirmDeleteLog(log)}
+                            title="Excluir Produção"
+                            className="flex items-center gap-1.5 mx-auto bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all duration-200 shadow-sm shadow-red-900/50 border border-red-500"
+                          >
+                            <Trash2 size={11} />
+                            Excluir Produção
+                          </button>
                         </td>
                       )}
                     </tr>
@@ -234,8 +352,22 @@ export const ProductionControl: React.FC<ProductionControlProps> = ({ logs, onAd
             </div>
           </div>
         </div>
-
       </div>
+
+      {/* ── Modal de Confirmação de Exclusão ── */}
+      {confirmDeleteLog && (
+        <DeleteLogModal
+          log={confirmDeleteLog}
+          isDeleting={isDeleting}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setConfirmDeleteLog(null)}
+        />
+      )}
+
+      {/* ── Toast de Feedback ── */}
+      {toast && (
+        <Toast toast={toast} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 };
