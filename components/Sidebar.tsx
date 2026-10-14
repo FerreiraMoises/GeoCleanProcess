@@ -66,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setSucesso(false);
   };
 
-  const NavButton = ({ item }: { item: { id: string; label: string; icon: React.ElementType } }) => {
+  const NavButton = ({ item }: { key?: React.Key; item: { id: string; label: string; icon: React.ElementType } }) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
     return (

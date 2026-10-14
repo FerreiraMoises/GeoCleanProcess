@@ -40,7 +40,7 @@ function LiveClock() {
 }
 
 // ─── Cartão de colaborador para TV ────────────────────────────────────────────
-function EmployeeTVCard({ employee, queue }: { employee: Employee; queue: ActivityQueueItem[] }) {
+function EmployeeTVCard({ employee, queue }: { key?: React.Key; employee: Employee; queue: ActivityQueueItem[] }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 5000);
@@ -139,7 +139,7 @@ function EmployeeTVCard({ employee, queue }: { employee: Employee; queue: Activi
 }
 
 // ─── Indicador de reator ──────────────────────────────────────────────────────
-function ReactorIndicator({ reactor }: { reactor: ReactorState }) {
+function ReactorIndicator({ reactor }: { key?: React.Key; reactor: ReactorState }) {
   const colors: Record<string, string> = {
     'Operando': 'bg-green-500',
     'Parado': 'bg-slate-600',

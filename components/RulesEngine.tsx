@@ -216,6 +216,7 @@ function RuleForm({ onSave, onCancel, initial }: RuleFormProps) {
 
 // ─── Cartão de regra ──────────────────────────────────────────────────────────
 interface RuleCardProps {
+  key?: React.Key;
   rule: QueueRule;
   onToggle: (id: string, active: boolean) => void;
   onEdit: (rule: QueueRule) => void;

@@ -100,6 +100,7 @@ const KanbanCard = React.memo(function KanbanCard({
 
 // ─── Coluna Kanban ────────────────────────────────────────────────────────────
 interface KanbanColumnComponentProps {
+  key?: React.Key;
   column: KanbanColumn;
   items: ActivityQueueItem[];
   employees: Employee[];
